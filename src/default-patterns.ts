@@ -1,4 +1,4 @@
-import { Pattern } from './types';
+import type { Pattern } from './types';
 
 export const defaultPatterns: Pattern[] = [
   {

@@ -1,9 +1,10 @@
-import { watch, FSWatcher } from "fs";
 import { readFile } from "fs/promises";
 import { resolve, relative } from "path";
 import { EventEmitter } from "events";
 import type { Config, MatchInfo, FileContext } from "./types";
 import { defaultPatterns } from "./default-patterns";
+import { KeyboardController } from "./keyboard-controller";
+import { BaselineTracker } from "./baseline-tracker";
 
 interface WatcherOptions {
   config: Config;
@@ -19,7 +20,8 @@ export class FileWatcher extends EventEmitter {
   private ignorePatterns: RegExp[];
   private recentMatches: Map<string, number> = new Map();
   private fileContexts: Map<string, FileContext> = new Map();
-  private watchers: FSWatcher[] = [];
+  private watchers: (() => void)[] = []; // Array of cleanup functions
+  private baseline: Awaited<ReturnType<typeof BaselineTracker.loadBaseline>> = null;
 
   constructor(options: WatcherOptions) {
     super();
@@ -42,6 +44,20 @@ export class FileWatcher extends EventEmitter {
     console.log(`🔍 Watching ${this.directories.length} directories for anti-patterns...`);
     console.log(`📝 Monitoring ${this.config.patterns.length} patterns`);
     console.log(`📁 File extensions: ${Array.from(this.fileExtensions).join(', ')}`);
+    console.log(`⌨️  Will send keyboard interrupts to active window when patterns detected`);
+    
+    // Load baseline for new vs existing pattern detection
+    this.baseline = await BaselineTracker.loadBaseline();
+    if (this.baseline) {
+      console.log(`📸 Loaded baseline with ${this.baseline.entries.length} existing patterns (will only alert on NEW patterns)`);
+    } else {
+      console.log(`📸 No baseline found - will alert on ALL patterns. Run 'llm-whip audit' first to create baseline.`);
+    }
+    
+    console.log(`🎯 Focus your Claude window and start coding...\n`);
+    
+    // Initialize keyboard controller
+    await KeyboardController.init();
     
     for (const dir of this.directories) {
       const watcher = this.watchDirectory(dir);
@@ -50,26 +66,42 @@ export class FileWatcher extends EventEmitter {
   }
 
   private watchDirectory(dir: string) {
-    const watcher = watch(dir, { recursive: true }, async (eventType, filename) => {
-      if (!filename) return;
-      
-      const filePath = resolve(dir, filename.toString());
-      
-      // Check if we should process this file
-      if (!this.shouldProcessFile(filePath)) return;
-      
-      try {
-        await this.processFile(filePath);
-      } catch (err) {
-        // File might have been deleted or is inaccessible
-        if ((err as any).code !== 'ENOENT') {
-          console.error(`Error processing ${filePath}:`, err);
-        }
+    // Use Bun's native file watcher
+    const watcher = Bun.watch(dir, {
+      recursive: true,
+      onError: (error) => {
+        console.error(`Watcher error for ${dir}:`, error);
       }
     });
 
+    const stopWatching = () => {
+      watcher.close();
+    };
+
+    // Handle file changes
+    (async () => {
+      for await (const event of watcher) {
+        if (event.kind === 'change' || event.kind === 'create') {
+          const filePath = event.path;
+          
+          // Check if we should process this file
+          if (!this.shouldProcessFile(filePath)) continue;
+          
+          try {
+            await this.processFile(filePath);
+          } catch (err) {
+            // File might have been deleted or is inaccessible
+            const nodeError = err as NodeJS.ErrnoException;
+            if (nodeError.code !== 'ENOENT') {
+              console.error(`Error processing ${filePath}:`, err);
+            }
+          }
+        }
+      }
+    })();
+
     this.emit('watching', dir);
-    return watcher;
+    return stopWatching;
   }
 
   private shouldProcessFile(filePath: string): boolean {
@@ -122,18 +154,35 @@ export class FileWatcher extends EventEmitter {
       let match: RegExpExecArray | null;
       
       while ((match = regex.exec(line)) !== null) {
+        const relativePath = relative(process.cwd(), filePath);
+        const fullLineContent = line.trim();
+        
+        // Check if this is a new pattern (not in baseline)
+        const isNew = !this.baseline || BaselineTracker.isNewPattern(
+          relativePath, 
+          lineNumber, 
+          patternConfig.name, 
+          fullLineContent, 
+          this.baseline
+        );
+
+        // Only alert on new patterns if we have a baseline
+        if (!isNew && this.baseline) {
+          continue; // Skip existing patterns
+        }
+
         const matchInfo: MatchInfo = {
           pattern: patternConfig.name,
           severity: patternConfig.severity,
           match: match[0],
           index: match.index,
           reactions: patternConfig.reactions,
-          message: patternConfig.message,
-          file: relative(process.cwd(), filePath),
+          message: isNew ? `🆕 NEW ${patternConfig.message}` : patternConfig.message,
+          file: relativePath,
           line: lineNumber.toString(),
           context: this.getContext(line, match.index),
           timestamp: Date.now(),
-          fullLine: line.trim()
+          fullLine: fullLineContent
         };
 
         // Check debounce
@@ -145,6 +194,17 @@ export class FileWatcher extends EventEmitter {
             Date.now() - lastMatch > this.config.debounce.window) {
           matches.push(matchInfo);
           this.recentMatches.set(matchKey, Date.now());
+          
+          // Schedule baseline update (async, don't wait)
+          if (isNew) {
+            const baselineEntry = BaselineTracker.createBaselineEntry(
+              relativePath, 
+              lineNumber, 
+              patternConfig.name, 
+              fullLineContent
+            );
+            BaselineTracker.updateBaseline([baselineEntry]).catch(console.error);
+          }
         }
       }
     }
@@ -152,7 +212,7 @@ export class FileWatcher extends EventEmitter {
     return matches;
   }
 
-  private getContext(text: string, index: number, contextSize: number = 50): string {
+  private getContext(text: string, index: number, contextSize = 50): string {
     const start = Math.max(0, index - contextSize);
     const end = Math.min(text.length, index + contextSize);
     return text.substring(start, end).trim();
@@ -167,6 +227,11 @@ export class FileWatcher extends EventEmitter {
           case 'sound':
             if (this.config.reactions.sound.enabled) {
               this.playSound();
+              // Also send system notification
+              await KeyboardController.sendNotification(
+                'Claude Watchdog',
+                `Anti-cheat detected in ${match.file}:${match.line}`
+              );
             }
             break;
             
@@ -177,9 +242,8 @@ export class FileWatcher extends EventEmitter {
             break;
             
           case 'interrupt':
-            // In watch mode, we can't interrupt Claude, so we'll show a prominent alert
             if (this.config.reactions.interrupt.enabled) {
-              this.showInterruptAlert(match);
+              await this.sendKeyboardInterrupt(match);
             }
             break;
         }
@@ -189,7 +253,7 @@ export class FileWatcher extends EventEmitter {
 
   private playSound() {
     const { exec } = require('child_process');
-    exec(this.config.reactions.sound.command, (err: any) => {
+    exec(this.config.reactions.sound.command, (err: Error | null) => {
       if (err) console.error('Failed to play sound:', err.message);
     });
   }
@@ -216,14 +280,36 @@ export class FileWatcher extends EventEmitter {
     }
   }
 
-  private showInterruptAlert(match: MatchInfo) {
-    console.log('\n' + '🚨'.repeat(20));
-    console.log(`\x1b[91m⚠️  ${match.message}\x1b[0m`);
-    console.log(`\x1b[93m📍 Location: ${match.file}:${match.line}\x1b[0m`);
-    console.log('🚨'.repeat(20) + '\n');
+  private async sendKeyboardInterrupt(match: MatchInfo) {
+    const location = `${match.file}:${match.line}`;
+    
+    // Show local alert
+    process.stderr.write(
+      `\n\x1b[41m\x1b[97m${'🚨'.repeat(10)} INTERRUPTING CLAUDE ${'🚨'.repeat(10)}\x1b[0m\n` +
+      `\x1b[91m\x1b[1m⚠️  ${match.message}\x1b[0m\n` +
+      `\x1b[93m📍 Location: ${location}\x1b[0m\n` +
+      `\x1b[90mSending keyboard interrupt to active window...\x1b[0m\n` +
+      `\x1b[41m\x1b[97m${'🚨'.repeat(41)}\x1b[0m\n\n`
+    );
+    
+    // Send keyboard interrupt to Claude
+    const success = await KeyboardController.sendInterruptSequence(match.message, location);
+    
+    if (!success) {
+      process.stderr.write(
+        `\x1b[93m⚠️  Could not send keyboard interrupt. Make sure Claude window is active.\x1b[0m\n\n`
+      );
+      
+      // Fallback to system notification
+      await KeyboardController.sendNotification(
+        'Claude Watchdog - Anti-Cheat Detected',
+        `${match.message} at ${location}`
+      );
+    }
   }
 
   stop() {
+    console.log('\n🛑 Stopping file watcher...');
     // Close all watchers
     this.watchers.forEach(watcher => watcher.close());
     this.watchers = [];

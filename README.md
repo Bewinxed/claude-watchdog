@@ -5,13 +5,13 @@ A TypeScript wrapper for Claude CLI that monitors output for lazy coding pattern
 ## Features
 
 - **Two Operation Modes**:
-  - **Claude Wrapper**: Monitor Claude CLI output in real-time
-  - **File Watch**: Monitor directories for anti-patterns
-- **Real-time Output Monitoring**: Watches Claude's output for configurable patterns
-- **File/Line Tracking**: Detects which file and line is being edited when cheating occurs
+  - **Background Mode**: Launch Claude + file monitoring (DEFAULT)
+  - **File Watch**: Monitor directories only
+- **Keyboard Interruption**: Sends actual keystrokes to Claude when cheating detected
+- **File/Line Tracking**: Shows exact file and line number where patterns are found
 - **Multiple Reaction Types**:
-  - Sound alerts (platform-specific)
-  - CLI interruption with custom messages (wrapper mode)
+  - Sound alerts + desktop notifications
+  - Keyboard interrupts with custom messages
   - Console alerts with context
   - Webhook notifications (optional)
 - **Smart Pattern Detection**: Catches common LLM shortcuts like:
@@ -22,65 +22,64 @@ A TypeScript wrapper for Claude CLI that monitors output for lazy coding pattern
   - Hand-wavy descriptions (`just add`, `simply implement`)
   - Empty implementations (`pass`, `NotImplemented`)
   - Error suppression (`@ts-ignore`, `# type: ignore`)
-- **Efficient File Watching**: 
-  - Uses Bun's native file watcher
-  - Configurable file extensions
-  - Ignore patterns for node_modules, dist, etc.
-  - Recursive directory watching
+- **Background Monitoring**: 
+  - Runs Claude normally while watching files
+  - Cross-platform keyboard control (macOS, Linux, Windows)
+  - System notifications and sound alerts
+  - Configurable file extensions and ignore patterns
 
 ## Installation
 
 ```bash
-# Clone the repository
-git clone https://github.com/bewinxed/claude-watchdog.git
-cd claude-watchdog
+# Install globally with bun
+bunx claude-watchdog
 
-# Install dependencies with Bun
-bun install
+# Or install as dependency
+bun add claude-watchdog
 
-# Build the TypeScript code
-bun run build
-
-# Build standalone executable
-bun run build:standalone
-
-# Run tests
-bun test
+# Or install globally with npm
+npm install -g claude-watchdog
 ```
 
 ## Usage
 
-### Basic Usage - Claude Wrapper Mode
+**💡 TIP: Use `claude-watchdog bg` for the best experience!**
+
+### Recommended Usage - Background Mode
 
 ```bash
-# Run with default patterns
-bun run dev
+# Launch Claude with background file monitoring (BEST)
+bunx claude-watchdog bg
 
-# Or if built and linked globally
-claude-watchdog
+# With custom config
+bunx claude-watchdog bg --config=strict-patterns.json
 ```
 
-### Watch Mode - Monitor Files in Directories
+This mode:
+- ✅ Runs Claude normally (no UI disruption)
+- ✅ Monitors current directory in background
+- ✅ **Sends keyboard interrupts** to Claude when patterns detected
+- ✅ Shows exact file and line numbers
+- ✅ Works with any text editor
+
+### File Watch Mode - Monitor Only (No Claude)
 
 ```bash
 # Watch directories for anti-patterns
-claude-watchdog watch ./src ./lib
+bunx claude-watchdog watch ./src ./lib
 
 # With custom config
-claude-watchdog watch ./src --config=my-patterns.json
-
-# Watch specific file types
-bun run dev watch ./project --config=config.json
+bunx claude-watchdog watch ./src --config=my-patterns.json
 ```
 
 ### Claude Wrapper Mode with Custom Configuration
 
 ```bash
 # Use custom config file
-claude-watchdog --config=my-patterns.json
+bunx claude-watchdog --config=my-patterns.json
 
 # Pass arguments to Claude
-claude-watchdog --model claude-3-opus --temperature 0.7
+bunx claude-watchdog --model claude-3-opus --temperature 0.7
 ```
 
 ## Configuration

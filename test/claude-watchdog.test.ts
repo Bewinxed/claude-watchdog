@@ -1,5 +1,5 @@
 import { describe, test, expect, beforeEach, mock } from "bun:test";
-import ClaudeWatchdog from "../src/claude-watchdog";
+import ClaudeWatchdog from "../src/llm-whip";
 import { EventEmitter } from "events";
 import type { MatchInfo, Config } from "../src/types";
 
@@ -209,16 +209,16 @@ describe("ClaudeWatchdog", () => {
 
   describe("Reactions", () => {
     test("should trigger alert reaction", () => {
-      const consoleSpy = mock();
-      const originalError = console.error;
-      console.error = consoleSpy;
+      const stderrSpy = mock();
+      const originalWrite = process.stderr.write;
+      process.stderr.write = stderrSpy;
 
       const testOutput = "// TODO: implement\n";
       // @ts-ignore
       watchdog.processOutput(Buffer.from(testOutput));
 
-      expect(consoleSpy).toHaveBeenCalled();
-      console.error = originalError;
+      expect(stderrSpy).toHaveBeenCalled();
+      process.stderr.write = originalWrite;
     });
 
     test("should respect reaction configuration", () => {

@@ -1,0 +1,30 @@
+{
+  "$schema": "https://biomejs.dev/schemas/1.9.4/schema.json",
+  "formatter": {
+    "enabled": true,
+    "indentStyle": "space",
+    "indentWidth": 2
+  },
+  "linter": {
+    "enabled": true,
+    "rules": {
+      "complexity": {
+        "noStaticOnlyClass": "off"
+      },
+      "suspicious": {
+        "noExplicitAny": "warn"
+      },
+      "style": {
+        "useNodejsImportProtocol": "off",
+        "useTemplate": "warn"
+      }
+    }
+  },
+  "files": {
+    "ignore": [
+      "dist/**",
+      "node_modules/**",
+      "*.config.ts"
+    ]
+  }
+}

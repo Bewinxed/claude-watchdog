@@ -86,6 +86,6 @@ export type ReactionType = 'sound' | 'interrupt' | 'alert' | 'webhook';
 
 export interface WatchdogEvent {
   type: 'match' | 'start' | 'stop' | 'error';
-  data: any;
+  data: unknown;
   timestamp: number;
 }
