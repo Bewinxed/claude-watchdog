@@ -1,0 +1,46 @@
+{
+  "name": "claude-watchdog",
+  "version": "1.0.0",
+  "description": "A TypeScript wrapper for Claude CLI that monitors output for anti-patterns and lazy coding",
+  "main": "dist/claude-watchdog.js",
+  "types": "dist/claude-watchdog.d.ts",
+  "type": "module",
+  "bin": {
+    "claude-watchdog": "./dist/claude-watchdog.js"
+  },
+  "scripts": {
+    "build": "bun build ./src/claude-watchdog.ts --outdir ./dist --target node",
+    "build:standalone": "bun build ./src/claude-watchdog.ts --compile --outfile claude-watchdog",
+    "dev": "bun run src/claude-watchdog.ts",
+    "test": "bun test",
+    "test:watch": "bun test --watch",
+    "clean": "rm -rf dist",
+    "prepublishOnly": "bun run clean && bun run build"
+  },
+  "keywords": [
+    "claude",
+    "cli",
+    "wrapper",
+    "monitoring",
+    "code-quality",
+    "typescript",
+    "bun"
+  ],
+  "author": "bewinxed",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/bewinxed/claude-watchdog.git"
+  },
+  "bugs": {
+    "url": "https://github.com/bewinxed/claude-watchdog/issues"
+  },
+  "homepage": "https://github.com/bewinxed/claude-watchdog#readme",
+  "license": "MIT",
+  "engines": {
+    "bun": ">=1.0.0"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "@types/node": "^20.0.0"
+  }
+}
