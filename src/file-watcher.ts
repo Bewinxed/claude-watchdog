@@ -92,7 +92,7 @@ export class FileWatcher extends EventEmitter {
 
   private watchDirectory(dir: string) {
     // Use Node.js fs.watch for directory watching
-    const watcher = watch(dir, { recursive: true }, async (eventType, filename) => {
+    const watcher = watch(dir, { recursive: true }, async (_, filename) => {
       if (!filename) return;
       
       const filePath = resolve(dir, filename);

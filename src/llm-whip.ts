@@ -1,10 +1,12 @@
 #!/usr/bin/env node
 
-import { spawn, type ChildProcess, exec } from 'child_process';
+import { spawn, type ChildProcess } from 'child_process';
 import { EventEmitter } from 'events';
 import * as fs from 'fs';
 import * as path from 'path';
-import type { Config, FileContext, MatchInfo } from './types';
+import type { Config } from './types';
+import { config as rootConfig } from '../llm-whip.config';
+import { showHelp } from './cli-help';
 import { FileWatcher } from './file-watcher';
 import { ClaudeLauncher } from './claude-launcher';
 import { InitCommand } from './init-command';
@@ -14,9 +16,6 @@ import { PermissionManager } from './permission-manager';
 class ClaudeWatchdog extends EventEmitter {
   private config: Config;
   private claudeProcess: ChildProcess | null = null;
-  private fileContext: FileContext = { currentFile: null, currentLine: null };
-  private recentMatches: Map<string, number> = new Map();
-  private outputBuffer = '';
 
   constructor(customConfig: Partial<Config> = {}) {
     super();
@@ -24,191 +23,11 @@ class ClaudeWatchdog extends EventEmitter {
   }
 
   private loadConfig(customConfig: Partial<Config>): Config {
-    const defaultConfig: Config = {
-      patterns: [
-        { name: "todo", pattern: "TODO" },
-        { name: "placeholder", pattern: "placeholder|stub" },
-        { name: "not-implemented", pattern: "not implemented|NotImplementedError" }
-      ]
-    };
+    const defaultConfig: Config = rootConfig;
     return { ...defaultConfig, ...customConfig };
   }
 
-  private detectFileContext(line: string): void {
-    if (this.config.fileTracking === false) return;
 
-    const patterns = typeof this.config.fileTracking === 'object' ? this.config.fileTracking : {
-      filePath: "(?:^|\\s)([\\/\\w\\-\\.]+\\.(js|ts|py|java|cpp|c|go|rs|rb|php|jsx|tsx|vue|svelte))",
-      editingFile: "(?:editing|modifying|updating|writing to|creating)\\s+([\\/\\w\\-\\.]+\\.\\w+)",
-      lineNumber: "line\\s+(\\d+)|:(\\d+):|at\\s+(\\d+)"
-    };
-
-    // Check for file path mentions
-    const fileMatch = line.match(new RegExp(patterns.filePath || '', 'i'));
-    if (fileMatch) {
-      this.fileContext.currentFile = fileMatch[1] || null;
-    }
-
-    // Check for explicit editing mentions
-    const editMatch = line.match(new RegExp(patterns.editingFile || '', 'i'));
-    if (editMatch) {
-      this.fileContext.currentFile = editMatch[1] || null;
-    }
-
-    // Check for line numbers
-    const lineMatch = line.match(new RegExp(patterns.lineNumber || '', 'i'));
-    if (lineMatch) {
-      this.fileContext.currentLine = lineMatch[1] || lineMatch[2] || lineMatch[3] || null;
-    }
-  }
-
-  private checkPatterns(text: string): MatchInfo[] {
-    const matches: MatchInfo[] = [];
-    
-    for (const patternConfig of this.config.patterns) {
-      const regex = new RegExp(patternConfig.pattern, 'gmi');
-      let match: RegExpExecArray | null;
-      
-      while ((match = regex.exec(text)) !== null) {
-        const matchInfo: MatchInfo = {
-          pattern: patternConfig.name,
-          severity: patternConfig.severity || 'medium',
-          match: match[0],
-          index: match.index,
-          reactions: patternConfig.reactions || ['alert'],
-          message: patternConfig.message || `${patternConfig.name} detected`,
-          file: this.fileContext.currentFile,
-          line: this.fileContext.currentLine,
-          context: this.getContext(text, match.index)
-        };
-
-        // Check debounce
-        const matchKey = `${patternConfig.name}-${matchInfo.file || 'unknown'}`;
-        const lastMatch = this.recentMatches.get(matchKey);
-        
-        const debounceWindow = typeof this.config.debounce === 'number' ? this.config.debounce : (this.config.debounce === false ? 0 : 2000);
-        if (debounceWindow === 0 || !lastMatch || Date.now() - lastMatch > debounceWindow) {
-          matches.push(matchInfo);
-          this.recentMatches.set(matchKey, Date.now());
-        }
-      }
-    }
-    
-    return matches;
-  }
-
-  private getContext(text: string, index: number, contextSize = 100): string {
-    const start = Math.max(0, index - contextSize);
-    const end = Math.min(text.length, index + contextSize);
-    return text.substring(start, end).replace(/\n/g, ' ');
-  }
-
-  private async executeReactions(matches: MatchInfo[]): Promise<void> {
-    for (const match of matches) {
-      this.emit('match', match);
-      
-      for (const reaction of match.reactions) {
-        switch (reaction) {
-          case 'sound':
-            if (this.config.reactions?.sound !== false) {
-              this.playSound();
-            }
-            break;
-            
-          case 'interrupt':
-            const interruptEnabled = this.config.reactions?.interrupt === true || 
-              (typeof this.config.reactions?.interrupt === 'object' && this.config.reactions.interrupt !== null);
-            if (interruptEnabled) {
-              await this.interruptClaude(match);
-            }
-            break;
-            
-          case 'alert':
-            if (this.config.reactions?.alert !== false) {
-              this.showAlert(match);
-            }
-            break;
-        }
-      }
-    }
-  }
-
-  private playSound(): void {
-    const soundConfig = this.config.reactions?.sound;
-    const command = typeof soundConfig === 'object' && soundConfig?.command 
-      ? soundConfig.command 
-      : process.platform === 'darwin' ? 'afplay /System/Library/Sounds/Basso.aiff' :
-        process.platform === 'win32' ? 'powershell -c (New-Object Media.SoundPlayer "C:\\Windows\\Media\\chord.wav").PlaySync()' :
-        'paplay /usr/share/sounds/freedesktop/stereo/bell.oga';
-    
-    exec(command, (err) => {
-      if (err) console.error('Failed to play sound:', err.message);
-    });
-  }
-
-  private async interruptClaude(match: MatchInfo): Promise<void> {
-    const interruptConfig = this.config.reactions?.interrupt;
-    const delay = typeof interruptConfig === 'object' && interruptConfig?.delay ? interruptConfig.delay : 100;
-    await new Promise(resolve => setTimeout(resolve, delay));
-    
-    const location = match.file ? `in ${match.file}${match.line ? `:${match.line}` : ''}` : '';
-    
-    // Show prominent interrupt message
-    process.stderr.write(
-      `\r\x1b[K\n` +
-      `\x1b[41m\x1b[97m${'🚨'.repeat(10)} STOP CODING ${' 🚨'.repeat(10)}\x1b[0m\n` +
-      `\x1b[91m\x1b[1m${match.message}\x1b[0m ${location}\n` +
-      `\x1b[41m\x1b[97m${'🚨'.repeat(31)}\x1b[0m\n\n`
-    );
-    
-    // Note: We can't send input to Claude's stdin in TUI mode
-    // The visual alert above should be sufficient
-  }
-
-  private showAlert(match: MatchInfo): void {
-    const location = match.file ? `in ${match.file}${match.line ? `:${match.line}` : ''}` : '';
-    const timestamp = new Date().toLocaleTimeString();
-    
-    // Clear current line and show alert above Claude's output
-    const alertConfig = this.config.reactions?.alert;
-    const format = typeof alertConfig === 'object' && alertConfig?.format ? alertConfig.format : 'color';
-    
-    if (format === 'color') {
-      process.stderr.write(
-        `\r\x1b[K\x1b[41m\x1b[97m ⚠️  ANTI-CHEAT DETECTED \x1b[0m\n` +
-        `\x1b[90m[${timestamp}]\x1b[0m \x1b[31m${match.pattern}\x1b[0m: ${match.message} ${location}\n` +
-        `\x1b[90mContext:\x1b[0m "${match.context}"\n\n`
-      );
-    } else {
-      process.stderr.write(
-        `\r\x1b[K[WATCHDOG ${timestamp}] ${match.pattern}: ${match.message} ${location}\n` +
-        `Context: "${match.context}"\n\n`
-      );
-    }
-  }
-
-  private _processOutput(data: Buffer): void {
-    const text = data.toString();
-    this.outputBuffer += text;
-    
-    // Process complete lines
-    const lines = this.outputBuffer.split('\n');
-    this.outputBuffer = lines.pop() || '';
-    
-    for (const line of lines) {
-      // Update file context
-      this.detectFileContext(line);
-      
-      // Check for cheat patterns
-      const matches = this.checkPatterns(line);
-      if (matches.length > 0) {
-        this.executeReactions(matches);
-      }
-    }
-    
-    // Pass through to stdout
-    process.stdout.write(data);
-  }
 
   public start(claudeArgs: string[] = []): void {
     const claudePath = process.env.CLAUDE_PATH || 'claude';
@@ -346,13 +165,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
         process.exit(1);
       }
       
-      let config: Config = {
-        patterns: [
-          { name: "todo", pattern: "TODO" },
-          { name: "placeholder", pattern: "placeholder|stub" },
-          { name: "not-implemented", pattern: "not implemented|NotImplementedError" }
-        ]
-      };
+      let config: Config = rootConfig;
       
       if (configPath) {
         try {
@@ -383,33 +196,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     } else {
       // Default: Background monitoring mode
       if (args.includes('--help') || args.includes('-h')) {
-        console.log(`
-LLM Whip - Anti-cheat monitoring for LLM coding sessions
-
-Usage:
-  llm-whip [options]                     Launch Claude with background monitoring (DEFAULT)
-  llm-whip init [dir]                    Create TypeScript configuration file
-  llm-whip audit [dirs...] [options]     Scan directories and report existing patterns
-  llm-whip watch <dirs...> [options]     Watch directories only (no LLM)
-
-Options:
-  --config=<path>                        Custom configuration file (.ts, .js, or .json)
-  --format=<type>                        Audit output format: table, json, csv (default: table)
-  --grep=<patterns>                      Only watch files containing these patterns (comma-separated)
-  --help, -h                             Show this help
-
-Examples:
-  llm-whip init                          # Create llm-whip.config.ts
-  llm-whip audit                         # Scan current directory for patterns
-  llm-whip audit ./src --format=json     # Audit src directory, output as JSON
-  llm-whip                               # Launch Claude with background monitoring
-  llm-whip --config=strict.ts            # With custom TypeScript config
-  llm-whip watch ./src ./lib             # File monitoring only
-  llm-whip watch ./src --grep="TODO,FIXME"  # Watch only files containing TODO or FIXME
-
-The default mode runs Claude normally while monitoring files for anti-cheat patterns!
-TypeScript configs provide full type safety and better IDE support.
-`);
+        showHelp();
         process.exit(0);
       }
       

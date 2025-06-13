@@ -4,6 +4,7 @@ import { spawn } from 'child_process';
 import { FileWatcher } from './file-watcher';
 import { StdoutMonitor } from './stdout-monitor';
 import type { Config } from './types';
+import { config as rootConfig } from '../llm-whip.config';
 import * as fs from 'fs';
 import { join } from 'path';
 
@@ -14,11 +15,7 @@ export class ClaudeLauncher {
 
     // Load config
     let config: Config = {
-      patterns: [
-        { name: "todo", pattern: "TODO" },
-        { name: "placeholder", pattern: "placeholder|stub" },
-        { name: "not-implemented", pattern: "not implemented|NotImplementedError" }
-      ],
+      ...rootConfig,
       reactions: {
         sound: { command: process.platform === 'darwin' ? 'afplay /System/Library/Sounds/Basso.aiff' :
                  process.platform === 'win32' ? 'powershell -c (New-Object Media.SoundPlayer "C:\\\\Windows\\\\Media\\\\chord.wav").PlaySync()' :

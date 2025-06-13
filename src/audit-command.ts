@@ -1,6 +1,9 @@
 import { readFile, readdir, stat } from 'node:fs/promises';
 import { join, relative, extname } from 'node:path';
 import type { Config, Pattern } from './types';
+import { config as rootConfig } from '../llm-whip.config';
+import * as p from '@clack/prompts';
+import color from 'picocolors';
 
 interface AuditResult {
   file: string;
@@ -24,24 +27,27 @@ export class AuditCommand {
   ];
 
   static async run(directories: string[], configPath?: string, format: 'table' | 'json' | 'csv' = 'table'): Promise<void> {
-    console.log('🔍 LLM Whip - Auditing directories for anti-cheat patterns...\n');
+    console.log();
+    p.intro(color.bgMagenta(color.black(' LLM Whip Audit ')));
 
     // Load config
     const config = await this.loadConfig(configPath);
     
     // Scan all directories
+    const spinner = p.spinner();
+    spinner.start('Scanning directories for anti-cheat patterns');
+    
     const results: AuditResult[] = [];
     for (const dir of directories) {
-      console.log(`📁 Scanning: ${dir}`);
+      spinner.message(`Scanning ${color.cyan(dir)}`);
       const dirResults = await this.scanDirectory(dir, config);
       results.push(...dirResults);
     }
-
-    // Output results
-    console.log(`\n📊 Found ${results.length} potential issues\n`);
+    
+    spinner.stop(`Found ${color.yellow(results.length.toString())} potential issues`);
     
     if (results.length === 0) {
-      console.log('✅ No anti-cheat patterns detected! Your code is clean.');
+      p.outro(color.green('✅ No anti-cheat patterns detected! Your code is clean.'));
       return;
     }
 
@@ -67,11 +73,7 @@ export class AuditCommand {
 
   private static async loadConfig(configPath?: string): Promise<Config> {
     const defaultConfig: Config = {
-      patterns: [
-        { name: "todo", pattern: "TODO" },
-        { name: "placeholder", pattern: "placeholder|stub" },
-        { name: "not-implemented", pattern: "not implemented|NotImplementedError" }
-      ],
+      ...rootConfig,
       reactions: { sound: false, interrupt: false, alert: false },
       debounce: false,
       fileTracking: false
