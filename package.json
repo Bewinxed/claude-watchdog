@@ -1,6 +1,6 @@
 {
 	"name": "llm-whip",
-	"version": "1.0.5",
+	"version": "1.0.6",
 	"author": "bewinxed",
 	"repository": {
 		"type": "git",
@@ -40,7 +40,7 @@
 	],
 	"license": "MIT",
 	"scripts": {
-		"build": "bun build ./src/llm-whip.ts --outdir ./dist --target node --format esm",
+		"build": "bun build ./src/llm-whip.ts --outdir ./dist --target node --format esm --banner=\"#!/usr/bin/env node\"",
 		"dev": "bun run src/llm-whip.ts",
 		"lint": "bunx biome lint --write src/ test/",
 		"test": "bun test",
