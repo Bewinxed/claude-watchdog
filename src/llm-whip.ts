@@ -81,6 +81,7 @@ async function main() {
       const configPath = watchArgs.find(arg => arg.startsWith('--config='))?.split('=')[1] || await findConfigFile();
       const grepFlag = watchArgs.find(arg => arg.startsWith('--grep='));
       const grepPatterns = grepFlag ? grepFlag.split('=')[1]?.split(',') || [] : [];
+      const keyboardEnabled = watchArgs.includes('--interrupt');
       const directories = watchArgs.filter(arg => !arg.startsWith('--'));
       
       if (directories.length === 0) {
@@ -105,6 +106,24 @@ async function main() {
           const errorMessage = err instanceof Error ? err.message : 'Unknown error';
           console.error('Failed to load config:', errorMessage);
           process.exit(1);
+        }
+      }
+      
+      // Add keyboard interrupt capability if requested
+      if (keyboardEnabled) {
+        // Check and request permissions first
+        const { PermissionManager } = await import('./permission-manager');
+        const hasPermission = await PermissionManager.checkAndRequestKeyboardPermissions();
+        
+        if (hasPermission) {
+          config.reactions = {
+            ...config.reactions,
+            interrupt: { delay: 500 }
+          };
+        } else {
+          console.error('❌ Keyboard interrupts require accessibility permissions. Disabling interrupt feature.');
+          console.log('💡 Grant permissions in: System Preferences > Security & Privacy > Privacy > Accessibility');
+          // Continue without interrupts
         }
       }
       
@@ -152,10 +171,20 @@ async function main() {
       
       // Add keyboard interrupt capability if requested
       if (keyboardEnabled) {
-        config.reactions = {
-          ...config.reactions,
-          interrupt: { delay: 500 }
-        };
+        // Check and request permissions first
+        const { PermissionManager } = await import('./permission-manager');
+        const hasPermission = await PermissionManager.checkAndRequestKeyboardPermissions();
+        
+        if (hasPermission) {
+          config.reactions = {
+            ...config.reactions,
+            interrupt: { delay: 500 }
+          };
+        } else {
+          console.error('❌ Keyboard interrupts require accessibility permissions. Disabling interrupt feature.');
+          console.log('💡 Grant permissions in: System Preferences > Security & Privacy > Privacy > Accessibility');
+          // Continue without interrupts
+        }
       }
       
       const watcher = new FileWatcher({ config, directories, grepPatterns });

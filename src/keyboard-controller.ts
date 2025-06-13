@@ -35,8 +35,8 @@ export class KeyboardController {
   private static async sendKeysOSX(keys: string): Promise<boolean> {
     if (!this.isOSXBuildAvailable) return false;
 
-    // Focus Claude window first
-    await this.focusClaudeWindow();
+    // Focus LLM window first
+    await this.focusLLMWindow();
     
     // Send the keys
     const script = `
@@ -78,15 +78,15 @@ export class KeyboardController {
     return true;
   }
 
-  static async focusClaudeWindow(): Promise<boolean> {
+  static async focusLLMWindow(): Promise<boolean> {
     try {
       if (process.platform === 'darwin') {
-        // Try to focus Claude Code or Terminal running Claude
+        // Try to focus LLM tools or Terminal running LLM
         const focusScript = `
           tell application "System Events"
-            set claudeApps to (every process whose name contains "claude" or name contains "Claude" or name contains "Terminal" or name contains "iTerm")
-            if length of claudeApps > 0 then
-              set frontmost of item 1 of claudeApps to true
+            set llmApps to (every process whose name contains "claude" or name contains "Claude" or name contains "Terminal" or name contains "iTerm" or name contains "Code" or name contains "cursor")
+            if length of llmApps > 0 then
+              set frontmost of item 1 of llmApps to true
               return true
             end if
           end tell
@@ -98,7 +98,7 @@ export class KeyboardController {
       // Add Linux/Windows focus logic if needed
       return true;
     } catch (error) {
-      console.error('Failed to focus Claude window:', error);
+      console.error('Failed to focus LLM window:', error);
       return false;
     }
   }

@@ -290,7 +290,7 @@ export class FileWatcher extends EventEmitter {
               this.playSound();
               // Also send system notification
               await KeyboardController.sendNotification(
-                'Claude Watchdog',
+                'LLM Whip',
                 `Anti-cheat detected in ${match.file}:${match.line}`
               );
             }
@@ -364,7 +364,7 @@ export class FileWatcher extends EventEmitter {
     
     // Show local alert
     process.stderr.write(
-      `\n\x1b[41m\x1b[97m${'🚨'.repeat(10)} INTERRUPTING CLAUDE ${'🚨'.repeat(10)}\x1b[0m\n` +
+      `\n\x1b[41m\x1b[97m${'🚨'.repeat(10)} INTERRUPTING LLM ${'🚨'.repeat(10)}\x1b[0m\n` +
       `\x1b[91m\x1b[1m⚠️  ${match.message}\x1b[0m\n` +
       `\x1b[93m📍 Location: ${location}\x1b[0m\n` +
       `\x1b[90mSending keyboard interrupt to active window...\x1b[0m\n` +
@@ -376,7 +376,7 @@ export class FileWatcher extends EventEmitter {
       match.message || 
       `${match.pattern} detected - please review and fix`;
     
-    // Send keyboard interrupt to Claude with detailed information
+    // Send keyboard interrupt to LLM with detailed information
     const success = await KeyboardController.sendInterruptSequence(
       interruptMessage, 
       location, 
@@ -386,7 +386,7 @@ export class FileWatcher extends EventEmitter {
     
     if (!success) {
       process.stderr.write(
-        `\x1b[93m⚠️  Could not send keyboard interrupt. Make sure Claude window is active.\x1b[0m\n\n`
+        `\x1b[93m⚠️  Could not send keyboard interrupt. Make sure LLM window is active.\x1b[0m\n\n`
       );
       
       // Fallback to system notification

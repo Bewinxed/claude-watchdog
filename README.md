@@ -63,8 +63,8 @@ llm-whip audit
 
 | Command                    | Description                              |
 | -------------------------- | ---------------------------------------- |
-| `llm-whip`                 | Launch Claude with background monitoring |
-| `llm-whip init [dir]`      | Create TypeScript configuration file     |
+| `llm-whip`                 | Monitor current directory                |
+| `llm-whip init [dir]`      | Create configuration file                |
 | `llm-whip audit [dirs...]` | Scan directories for patterns            |
 | `llm-whip watch <dirs...>` | Monitor directories in real-time         |
 
@@ -168,6 +168,58 @@ Each pattern can have a custom `interruptMessage` that gets sent to Claude:
   interruptMessage: "TODO comments should be completed before submitting code. Please implement the actual functionality instead of leaving placeholder comments."
 }
 ```
+
+## Monitoring LLM Conversations
+
+LLM Whip can monitor LLM conversation outputs by watching log files. This helps detect anti-cheat patterns in both your code and the LLM's responses.
+
+### Method 1: Using `tee` to clone output
+
+When using Claude Code CLI or other LLM tools, pipe the output to a file that LLM Whip monitors:
+
+```bash
+# Terminal 1: Start LLM Whip monitoring
+llm-whip ./project ./logs
+
+# Terminal 2: Run Claude Code with output logging
+claude-code ./project 2>&1 | tee logs/claude-session.log
+```
+
+### Method 2: Direct file monitoring
+
+Create a log file and have your LLM tool write to it:
+
+```bash
+# Start monitoring the logs directory
+llm-whip ./src ./logs
+
+# Your LLM tool outputs to logs/conversation.txt
+# LLM Whip will detect patterns in real-time
+```
+
+### Method 3: Script wrapper
+
+Create a wrapper script that automatically logs and monitors:
+
+```bash
+#!/bin/bash
+# llm-monitor.sh
+
+# Create logs directory
+mkdir -p ./logs
+
+# Start LLM Whip in background
+llm-whip ./src ./logs &
+WHIP_PID=$!
+
+# Run your LLM tool with logging
+claude-code "$@" 2>&1 | tee logs/session-$(date +%Y%m%d-%H%M%S).log
+
+# Clean up
+kill $WHIP_PID 2>/dev/null
+```
+
+Then use it like: `./llm-monitor.sh ./my-project`
 
 ## Advanced Usage
 

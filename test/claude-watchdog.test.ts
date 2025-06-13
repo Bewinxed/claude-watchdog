@@ -1,31 +1,33 @@
 import { describe, test, expect } from "bun:test";
-import ClaudeWatchdog from "../src/llm-whip";
+import { config as rootConfig } from "../llm-whip.config";
 import type { Config } from "../src/types";
 
-describe("ClaudeWatchdog", () => {
-  describe("Configuration", () => {
-    test("should load default patterns when none provided", () => {
-      const watchdog = new ClaudeWatchdog();
-      // @ts-ignore - accessing private property for testing
-      const config = watchdog.config;
-      
-      expect(config.patterns).toBeDefined();
-      expect(config.patterns.length).toBeGreaterThan(0);
-      expect(config.patterns.some(p => p.name === "todo")).toBe(true);
-      expect(config.patterns.some(p => p.name === "important-thing")).toBe(true);
+describe("LLM Whip Configuration", () => {
+  describe("Default Patterns", () => {
+    test("should have required default patterns", () => {
+      expect(rootConfig.patterns).toBeDefined();
+      expect(rootConfig.patterns.length).toBeGreaterThan(0);
+      expect(rootConfig.patterns.some(p => p.name === "todo")).toBe(true);
+      expect(rootConfig.patterns.some(p => p.name === "important-thing")).toBe(true);
     });
 
-    test("should merge custom config with defaults", () => {
-      const customConfig: Partial<Config> = {
-        debounce: 5000
-      };
+    test("should have valid pattern structure", () => {
+      const patterns = rootConfig.patterns;
       
-      const watchdog = new ClaudeWatchdog(customConfig);
-      // @ts-ignore - accessing private property for testing
-      const config = watchdog.config;
-      
-      expect(config.debounce).toBe(5000);
-      expect(config.patterns).toBeDefined(); // Should still have default patterns
+      patterns.forEach(pattern => {
+        expect(pattern.name).toBeDefined();
+        expect(typeof pattern.name).toBe("string");
+        expect(pattern.pattern).toBeDefined();
+        expect(typeof pattern.pattern).toBe("string");
+        
+        if (pattern.severity) {
+          expect(["low", "medium", "high"]).toContain(pattern.severity);
+        }
+        
+        if (pattern.message) {
+          expect(typeof pattern.message).toBe("string");
+        }
+      });
     });
   });
 });

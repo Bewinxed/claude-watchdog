@@ -18,7 +18,7 @@
 	"bugs": {
 		"url": "https://github.com/bewinxed/llm-whip/issues"
 	},
-	"description": "Anti-cheat monitoring for LLM coding sessions - keeps Claude honest!",
+	"description": "File monitoring tool that detects lazy patterns and anti-cheat behaviors in code and LLM conversations",
 	"engines": {
 		"node": ">=16.0.0",
 		"bun": ">=1.0.0"

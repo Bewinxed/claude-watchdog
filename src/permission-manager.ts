@@ -85,10 +85,10 @@ export class PermissionManager {
 
     console.log('\n🔐 LLM Whip - Keyboard Interrupt Setup');
     console.log('='.repeat(50));
-    console.log('\nThe watchdog can send keyboard interrupts to Claude when');
+    console.log('\nThe watchdog can send keyboard interrupts to LLM tools when');
     console.log('anti-cheat patterns are detected. This helps you catch');
     console.log('lazy coding in real-time by sending warnings directly');
-    console.log('to Claude\'s input.');
+    console.log('to the active window.');
     console.log('\n⚠️  This requires accessibility permissions to send');
     console.log('   keystrokes to other applications.');
     console.log('\n🔒 Your security: Only LLM Whip will have this');

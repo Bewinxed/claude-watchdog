@@ -3,8 +3,8 @@ import { spawn, type ChildProcess } from "child_process";
 import { mkdir, writeFile, rm } from "fs/promises";
 import { join } from "path";
 
-describe("Claude Integration Test", () => {
-  const testDir = join(__dirname, "claude-test-workspace");
+describe("LLM Integration Test", () => {
+  const testDir = join(__dirname, "llm-test-workspace");
   const configPath = join(testDir, "watchdog-config.ts");
   let watchdogProcess: ChildProcess | null = null;
 
@@ -51,7 +51,7 @@ export const config: Config = {
     await rm(testDir, { recursive: true, force: true });
   });
 
-  test("should catch TODO when Claude generates code", async () => {
+  test("should catch TODO when LLM generates code", async () => {
     return new Promise<void>(async (resolve, reject) => {
       // Start watchdog in file watch mode  
       const watchdogScript = join(__dirname, "..", "src", "llm-whip.ts");
@@ -82,30 +82,30 @@ export const config: Config = {
       await Bun.sleep(1000);
 
       try {
-        // Spawn Claude with a prompt that will create a TODO
-        const claudeProcess = spawn("claude", ["--print"], {
+        // Spawn LLM tool with a prompt that will create a TODO
+        const llmProcess = spawn("claude", ["--print"], {
           cwd: testDir,
           stdio: ["pipe", "pipe", "pipe"]
         });
 
-        let claudeOutput = "";
+        let llmOutput = "";
         
-        claudeProcess.stdout.on("data", (data) => {
-          claudeOutput += data.toString();
+        llmProcess.stdout.on("data", (data) => {
+          llmOutput += data.toString();
         });
 
         // Send the prompt via stdin
-        claudeProcess.stdin?.write("Create a simple TypeScript function with a TODO comment\n");
-        claudeProcess.stdin?.end();
+        llmProcess.stdin?.write("Create a simple TypeScript function with a TODO comment\n");
+        llmProcess.stdin?.end();
 
-        claudeProcess.on("exit", async (code) => {
-          console.log("✅ Claude finished with code:", code);
-          console.log("Claude output length:", claudeOutput.length);
-          console.log("Claude output contains TODO:", claudeOutput.includes("TODO"));
+        llmProcess.on("exit", async (code) => {
+          console.log("✅ LLM tool finished with code:", code);
+          console.log("LLM output length:", llmOutput.length);
+          console.log("LLM output contains TODO:", llmOutput.includes("TODO"));
           
-          if (claudeOutput.includes("TODO")) {
-            // Save Claude's output to a file (this should trigger the watchdog)
-            await writeFile(join(testDir, "claude-output.ts"), claudeOutput);
+          if (llmOutput.includes("TODO")) {
+            // Save LLM's output to a file (this should trigger the watchdog)
+            await writeFile(join(testDir, "llm-output.ts"), llmOutput);
             console.log("💾 Saved file, waiting for watchdog...");
             
             // Wait longer for watchdog to detect
@@ -116,8 +116,8 @@ export const config: Config = {
               reject(new Error("Watchdog did not detect the TODO pattern in file"));
             }
           } else {
-            // Claude didn't create a TODO, create one manually to test watchdog
-            console.log("🔧 Claude didn't create TODO, creating manual test...");
+            // LLM didn't create a TODO, create one manually to test watchdog
+            console.log("🔧 LLM didn't create TODO, creating manual test...");
             await writeFile(join(testDir, "manual-test.ts"), "// TODO: test pattern\nfunction test() {}");
             await Bun.sleep(2000);
             
@@ -128,20 +128,20 @@ export const config: Config = {
           }
         });
 
-        claudeProcess.on("error", (err) => {
-          console.error("Failed to run Claude:", err.message);
-          // Skip test if Claude not available
+        llmProcess.on("error", (err) => {
+          console.error("Failed to run LLM tool:", err.message);
+          // Skip test if LLM tool not available
           watchdogProcess?.kill();
           resolve();
         });
 
         // Timeout after 10 seconds
         setTimeout(() => {
-          claudeProcess.kill();
+          llmProcess.kill();
           if (!alertFound) {
             watchdogProcess?.kill();
-            console.log("⏱️ Test timed out, but that's OK if Claude is not available");
-            resolve(); // Don't fail the test if Claude is not available
+            console.log("⏱️ Test timed out, but that's OK if LLM tool is not available");
+            resolve(); // Don't fail the test if LLM tool is not available
           }
         }, 10000);
 

@@ -67,7 +67,7 @@ export class StdoutMonitor extends EventEmitter {
             index: line?.indexOf(matches[0]) || 0,
             reactions: patternConfig.reactions || ['alert'],
             message: patternConfig.message || `${patternConfig.name} detected`,
-            file: 'claude-output.log',
+            file: 'llm-output.log',
             line: (this.lastPosition + i + 1).toString(),
             context: line?.trim() || '',
             timestamp: Date.now(),
