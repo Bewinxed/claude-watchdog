@@ -1,62 +1,61 @@
 {
-  "name": "llm-whip",
-  "version": "1.0.0",
-  "author": "bewinxed",
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/bewinxed/llm-whip.git"
-  },
-  "main": "dist/llm-whip.js",
-  "devDependencies": {
-    "@biomejs/biome": "^1.9.4",
-    "@types/bun": "latest",
-    "@types/node": "^20.0.0"
-  },
-  "bin": {
-    "llm-whip": "./dist/llm-whip.js"
-  },
-  "bugs": {
-    "url": "https://github.com/bewinxed/llm-whip/issues"
-  },
-  "description": "Anti-cheat monitoring for LLM coding sessions - keeps Claude honest!",
-  "engines": {
-    "node": ">=16.0.0",
-    "bun": ">=1.0.0"
-  },
-  "files": [
-    "dist/**/*",
-    "config-example.json",
-    "README.md"
-  ],
-  "homepage": "https://github.com/bewinxed/llm-whip#readme",
-  "keywords": [
-    "llm",
-    "claude",
-    "monitoring",
-    "anti-cheat",
-    "code-quality",
-    "typescript",
-    "bun"
-  ],
-  "license": "MIT",
-  "scripts": {
-    "build": "bun build ./src/llm-whip.ts --outdir ./dist --target node --format esm",
-    "dev": "bun run src/llm-whip.ts",
-    "lint": "bunx biome lint --write src/ test/",
-    "test": "bun test",
-    "test:watch": "bun test --watch",
-    "clean": "rm -rf dist",
-    "prepare": "bun run clean && bun run build",
-    "prepublishOnly": "bun run prepare"
-  },
-  "type": "module",
-  "types": "dist/llm-whip.d.ts",
-  "dependencies": {
-    "@clack/prompts": "^0.11.0",
-    "ignore": "^7.0.5"
-  },
-  "private": true,
-  "peerDependencies": {
-    "typescript": "^5.8.3"
-  }
+	"name": "llm-whip",
+	"version": "1.0.1",
+	"author": "bewinxed",
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/bewinxed/llm-whip.git"
+	},
+	"main": "dist/llm-whip.js",
+	"devDependencies": {
+		"@biomejs/biome": "^1.9.4",
+		"@types/bun": "latest",
+		"@types/node": "^20.0.0"
+	},
+	"bin": {
+		"llm-whip": "./dist/llm-whip.js"
+	},
+	"bugs": {
+		"url": "https://github.com/bewinxed/llm-whip/issues"
+	},
+	"description": "Anti-cheat monitoring for LLM coding sessions - keeps Claude honest!",
+	"engines": {
+		"node": ">=16.0.0",
+		"bun": ">=1.0.0"
+	},
+	"files": [
+		"dist/**/*",
+		"config-example.json",
+		"README.md"
+	],
+	"homepage": "https://github.com/bewinxed/llm-whip#readme",
+	"keywords": [
+		"llm",
+		"claude",
+		"monitoring",
+		"anti-cheat",
+		"code-quality",
+		"typescript",
+		"bun"
+	],
+	"license": "MIT",
+	"scripts": {
+		"build": "bun build ./src/llm-whip.ts --outdir ./dist --target node --format esm",
+		"dev": "bun run src/llm-whip.ts",
+		"lint": "bunx biome lint --write src/ test/",
+		"test": "bun test",
+		"test:watch": "bun test --watch",
+		"clean": "rm -rf dist",
+		"prepare": "bun run clean && bun run build",
+		"prepublishOnly": "bun run prepare"
+	},
+	"type": "module",
+	"types": "dist/llm-whip.d.ts",
+	"dependencies": {
+		"@clack/prompts": "^0.11.0",
+		"ignore": "^7.0.5"
+	},
+	"peerDependencies": {
+		"typescript": "^5.8.3"
+	}
 }
