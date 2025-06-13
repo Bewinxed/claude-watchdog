@@ -6,7 +6,6 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as readline from 'readline';
 import { type Config, type FileContext, type MatchInfo, ReactionType, Pattern } from './types';
-import { defaultPatterns } from './default-patterns';
 import { FileWatcher } from './file-watcher';
 import { ClaudeLauncher } from './claude-launcher';
 import { InitCommand } from './init-command';
@@ -26,38 +25,7 @@ class ClaudeWatchdog extends EventEmitter {
   }
 
   private loadConfig(customConfig: Partial<Config>): Config {
-    const defaultConfig: Config = {
-      patterns: customConfig.patterns || defaultPatterns,
-      reactions: {
-        sound: {
-          enabled: true,
-          command: process.platform === 'darwin' ? 'afplay /System/Library/Sounds/Basso.aiff' :
-                   process.platform === 'win32' ? 'powershell -c (New-Object Media.SoundPlayer "C:\\Windows\\Media\\chord.wav").PlaySync()' :
-                   'paplay /usr/share/sounds/freedesktop/stereo/bell.oga'
-        },
-        interrupt: {
-          enabled: true,
-          delay: 100
-        },
-        alert: {
-          enabled: true,
-          format: "color"
-        }
-      },
-      debounce: {
-        enabled: true,
-        window: 5000
-      },
-      fileTracking: {
-        enabled: true,
-        patterns: {
-          filePath: "(?:^|\\s)([\\/\\w\\-\\.]+\\.(js|ts|py|java|cpp|c|go|rs|rb|php|jsx|tsx|vue|svelte))",
-          editingFile: "(?:editing|modifying|updating|writing to|creating)\\s+([\\/\\w\\-\\.]+\\.\\w+)",
-          lineNumber: "line\\s+(\\d+)|:(\\d+):|at\\s+(\\d+)"
-        }
-      }
-    };
-
+    const defaultConfig = createMinimalConfig();
     return { ...defaultConfig, ...customConfig };
   }
 
@@ -344,36 +312,17 @@ if (import.meta.main) {
       // File watch only mode
       const watchArgs = args.slice(1);
       const configPath = watchArgs.find(arg => arg.startsWith('--config='))?.split('=')[1] || await findConfigFile();
+      const grepFlag = watchArgs.find(arg => arg.startsWith('--grep='));
+      const grepPatterns = grepFlag ? grepFlag.split('=')[1].split(',') : [];
       const directories = watchArgs.filter(arg => !arg.startsWith('--'));
       
       if (directories.length === 0) {
-        console.error('Usage: llm-whip watch [directories...] [--config=path]');
-        console.error('Example: llm-whip watch ./src ./lib --config=config.ts');
+        console.error('Usage: llm-whip watch [directories...] [--config=path] [--grep=pattern1,pattern2]');
+        console.error('Example: llm-whip watch ./src ./lib --config=config.ts --grep="TODO,FIXME"');
         process.exit(1);
       }
       
-      let config: Config = {
-        patterns: defaultPatterns,
-        reactions: {
-          sound: {
-            enabled: true,
-            command: process.platform === 'darwin' ? 'afplay /System/Library/Sounds/Basso.aiff' :
-                     process.platform === 'win32' ? 'powershell -c (New-Object Media.SoundPlayer "C:\\Windows\\Media\\chord.wav").PlaySync()' :
-                     'paplay /usr/share/sounds/freedesktop/stereo/bell.oga'
-          },
-          interrupt: { enabled: false, delay: 100 }, // Disabled by default
-          alert: { enabled: true, format: "color" }
-        },
-        debounce: { enabled: true, window: 5000 },
-        fileTracking: {
-          enabled: true,
-          patterns: {
-            filePath: "(?:^|\\s)([\\/\\w\\-\\.]+\\.(js|ts|py|java|cpp|c|go|rs|rb|php|jsx|tsx|vue|svelte))",
-            editingFile: "(?:editing|modifying|updating|writing to|creating)\\s+([\\/\\w\\-\\.]+\\.\\w+)",
-            lineNumber: "line\\s+(\\d+)|:(\\d+):|at\\s+(\\d+)"
-          }
-        }
-      };
+      let config: Config = createMinimalConfig();
       
       if (configPath) {
         try {
@@ -382,9 +331,8 @@ if (import.meta.main) {
           if (tsConfig) {
             config = { ...config, ...tsConfig };
           } else {
-            // Fallback to JSON
-            const customConfig = JSON.parse(fs.readFileSync(configPath, 'utf8'));
-            config = { ...config, ...customConfig };
+            console.error('Config file must be a TypeScript (.ts) or JavaScript (.js) file');
+            process.exit(1);
           }
         } catch (err: unknown) {
           const errorMessage = err instanceof Error ? err.message : 'Unknown error';
@@ -393,7 +341,7 @@ if (import.meta.main) {
         }
       }
       
-      const watcher = new FileWatcher({ config, directories });
+      const watcher = new FileWatcher({ config, directories, grepPatterns });
       watcher.start();
       
       // Handle exit
@@ -412,11 +360,12 @@ Usage:
   llm-whip [options]                     Launch Claude with background monitoring (DEFAULT)
   llm-whip init [dir]                    Create TypeScript configuration file
   llm-whip audit [dirs...] [options]     Scan directories and report existing patterns
-  llm-whip watch <dirs...>               Watch directories only (no LLM)
+  llm-whip watch <dirs...> [options]     Watch directories only (no LLM)
 
 Options:
   --config=<path>                        Custom configuration file (.ts, .js, or .json)
   --format=<type>                        Audit output format: table, json, csv (default: table)
+  --grep=<patterns>                      Only watch files containing these patterns (comma-separated)
   --help, -h                             Show this help
 
 Examples:
@@ -426,6 +375,7 @@ Examples:
   llm-whip                               # Launch Claude with background monitoring
   llm-whip --config=strict.ts            # With custom TypeScript config
   llm-whip watch ./src ./lib             # File monitoring only
+  llm-whip watch ./src --grep="TODO,FIXME"  # Watch only files containing TODO or FIXME
 
 The default mode runs Claude normally while monitoring files for anti-cheat patterns!
 TypeScript configs provide full type safety and better IDE support.

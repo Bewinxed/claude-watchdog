@@ -1,5 +1,3 @@
-import { readFile, writeFile, access } from 'node:fs/promises';
-import { join } from 'node:path';
 import { createHash } from 'node:crypto';
 
 interface BaselineEntry {
@@ -15,35 +13,22 @@ interface Baseline {
 }
 
 export class BaselineTracker {
-  private static readonly BASELINE_FILE = '.llm-whip-baseline.json';
+  private static baseline: Baseline | null = null;
 
   static async createBaseline(entries: BaselineEntry[]): Promise<void> {
-    const baseline: Baseline = {
+    this.baseline = {
       timestamp: Date.now(),
       entries
     };
-
-    await writeFile(this.BASELINE_FILE, JSON.stringify(baseline, null, 2));
     console.log(`📸 Created baseline with ${entries.length} existing patterns`);
   }
 
   static async loadBaseline(): Promise<Baseline | null> {
-    try {
-      await access(this.BASELINE_FILE);
-      const content = await readFile(this.BASELINE_FILE, 'utf-8');
-      return JSON.parse(content);
-    } catch {
-      return null;
-    }
+    return this.baseline;
   }
 
   static async hasBaseline(): Promise<boolean> {
-    try {
-      await access(this.BASELINE_FILE);
-      return true;
-    } catch {
-      return false;
-    }
+    return this.baseline !== null;
   }
 
   static isNewPattern(file: string, line: number, pattern: string, fullLine: string, baseline: Baseline): boolean {
@@ -71,16 +56,14 @@ export class BaselineTracker {
   }
 
   static async updateBaseline(newEntries: BaselineEntry[]): Promise<void> {
-    let baseline = await this.loadBaseline();
-    
-    if (!baseline) {
+    if (!this.baseline) {
       await this.createBaseline(newEntries);
       return;
     }
 
     // Merge new entries with existing ones
     const existingKeys = new Set(
-      baseline.entries.map(e => `${e.file}:${e.line}:${e.pattern}:${e.contentHash}`)
+      this.baseline.entries.map(e => `${e.file}:${e.line}:${e.pattern}:${e.contentHash}`)
     );
 
     const uniqueNewEntries = newEntries.filter(entry => 
@@ -88,19 +71,14 @@ export class BaselineTracker {
     );
 
     if (uniqueNewEntries.length > 0) {
-      baseline.entries.push(...uniqueNewEntries);
-      baseline.timestamp = Date.now();
-      await writeFile(this.BASELINE_FILE, JSON.stringify(baseline, null, 2));
+      this.baseline.entries.push(...uniqueNewEntries);
+      this.baseline.timestamp = Date.now();
       console.log(`📸 Updated baseline with ${uniqueNewEntries.length} new patterns`);
     }
   }
 
   static async clearBaseline(): Promise<void> {
-    try {
-      await writeFile(this.BASELINE_FILE, '');
-      console.log('🗑️ Cleared baseline');
-    } catch (error) {
-      console.warn('Failed to clear baseline:', error);
-    }
+    this.baseline = null;
+    console.log('🗑️ Cleared baseline');
   }
 }

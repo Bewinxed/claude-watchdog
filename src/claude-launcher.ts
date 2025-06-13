@@ -3,7 +3,6 @@
 import { spawn } from 'child_process';
 import { FileWatcher } from './file-watcher';
 import { StdoutMonitor } from './stdout-monitor';
-import { defaultPatterns } from './default-patterns';
 import type { Config } from './types';
 import * as fs from 'fs';
 import { join } from 'path';
@@ -15,25 +14,23 @@ export class ClaudeLauncher {
 
     // Load config
     let config: Config = {
-      patterns: defaultPatterns,
+      patterns: [
+        { name: "todo", pattern: "TODO" },
+        { name: "placeholder", pattern: "placeholder|stub" },
+        { name: "not-implemented", pattern: "not implemented|NotImplementedError" }
+      ],
       reactions: {
-        sound: {
-          enabled: true,
-          command: process.platform === 'darwin' ? 'afplay /System/Library/Sounds/Basso.aiff' :
-                   process.platform === 'win32' ? 'powershell -c (New-Object Media.SoundPlayer "C:\\\\Windows\\\\Media\\\\chord.wav").PlaySync()' :
-                   'paplay /usr/share/sounds/freedesktop/stereo/bell.oga'
-        },
-        interrupt: { enabled: keyboardEnabled ?? true, delay: 500 }, // Longer delay for keyboard interrupts
-        alert: { enabled: true, format: "color" }
+        sound: { command: process.platform === 'darwin' ? 'afplay /System/Library/Sounds/Basso.aiff' :
+                 process.platform === 'win32' ? 'powershell -c (New-Object Media.SoundPlayer "C:\\\\Windows\\\\Media\\\\chord.wav").PlaySync()' :
+                 'paplay /usr/share/sounds/freedesktop/stereo/bell.oga' },
+        interrupt: keyboardEnabled ? { delay: 500 } : false,
+        alert: { format: "color" }
       },
-      debounce: { enabled: true, window: 3000 }, // Shorter debounce for faster response
+      debounce: 3000,
       fileTracking: {
-        enabled: true,
-        patterns: {
-          filePath: "(?:^|\\\\s)([\\\\/\\\\w\\\\-\\\\.]+\\\\.(js|ts|py|java|cpp|c|go|rs|rb|php|jsx|tsx|vue|svelte))",
-          editingFile: "(?:editing|modifying|updating|writing to|creating)\\\\s+([\\\\/\\\\w\\\\-\\\\.]+\\\\.\\\\w+)",
-          lineNumber: "line\\\\s+(\\\\d+)|:(\\\\d+):|at\\\\s+(\\\\d+)"
-        }
+        filePath: "(?:^|\\\\s)([\\\\/\\\\w\\\\-\\\\.]+\\\\.(js|ts|py|java|cpp|c|go|rs|rb|php|jsx|tsx|vue|svelte))",
+        editingFile: "(?:editing|modifying|updating|writing to|creating)\\\\s+([\\\\/\\\\w\\\\-\\\\.]+\\\\.\\\\w+)",
+        lineNumber: "line\\\\s+(\\\\d+)|:(\\\\d+):|at\\\\s+(\\\\d+)"
       }
     };
 
@@ -61,9 +58,8 @@ export class ClaudeLauncher {
           const customConfig = configModule.config || configModule.default;
           config = { ...config, ...customConfig };
         } else {
-          // Fallback to JSON
-          const customConfig = JSON.parse(fs.readFileSync(configPath, 'utf8'));
-          config = { ...config, ...customConfig };
+          console.error('Config file must be a TypeScript (.ts) or JavaScript (.js) file');
+          process.exit(1);
         }
       } catch (err: unknown) {
         const errorMessage = err instanceof Error ? err.message : 'Unknown error';

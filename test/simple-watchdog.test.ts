@@ -5,29 +5,41 @@ import { join } from "path";
 
 describe("Simple Watchdog Test", () => {
   const testDir = join(__dirname, "simple-test");
-  const configPath = join(testDir, "config.json");
+  const configPath = join(testDir, "config.ts");
 
   beforeAll(async () => {
     await mkdir(testDir, { recursive: true });
     
-    const config = {
-      patterns: [
-        {
-          name: "todo",
-          pattern: "TODO",
-          severity: "high",
-          reactions: ["alert"],
-          message: "TODO FOUND"
-        }
-      ],
-      reactions: {
-        sound: { enabled: false },
-        interrupt: { enabled: false },
-        alert: { enabled: true, format: "plain" }
-      }
-    };
+    const configContent = `import type { Config } from '../../src/types';
 
-    await writeFile(configPath, JSON.stringify(config, null, 2));
+export const config: Config = {
+  patterns: [
+    {
+      name: "todo",
+      pattern: "TODO",
+      severity: "high",
+      reactions: ["alert"],
+      message: "TODO FOUND"
+    }
+  ],
+  reactions: {
+    sound: { enabled: false, command: "" },
+    interrupt: { enabled: false, delay: 0 },
+    alert: { enabled: true, format: "plain" }
+  },
+  debounce: { enabled: false, window: 0 },
+  fileTracking: {
+    enabled: false,
+    patterns: {
+      filePath: "",
+      editingFile: "",
+      lineNumber: ""
+    }
+  }
+};
+`;
+
+    await writeFile(configPath, configContent);
   });
 
   afterAll(async () => {

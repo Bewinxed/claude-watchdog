@@ -1,7 +1,6 @@
 import { readFile, readdir, stat } from 'node:fs/promises';
 import { join, relative, extname } from 'node:path';
 import type { Config, Pattern } from './types';
-import { defaultPatterns } from './default-patterns';
 
 interface AuditResult {
   file: string;
@@ -68,10 +67,14 @@ export class AuditCommand {
 
   private static async loadConfig(configPath?: string): Promise<Config> {
     const defaultConfig: Config = {
-      patterns: defaultPatterns,
-      reactions: { sound: { enabled: false }, interrupt: { enabled: false }, alert: { enabled: false } },
-      debounce: { enabled: false, window: 0 },
-      fileTracking: { enabled: false, patterns: { filePath: '', editingFile: '', lineNumber: '' } }
+      patterns: [
+        { name: "todo", pattern: "TODO" },
+        { name: "placeholder", pattern: "placeholder|stub" },
+        { name: "not-implemented", pattern: "not implemented|NotImplementedError" }
+      ],
+      reactions: { sound: false, interrupt: false, alert: false },
+      debounce: false,
+      fileTracking: false
     };
 
     if (!configPath) return defaultConfig;
@@ -82,9 +85,8 @@ export class AuditCommand {
         const customConfig = configModule.config || configModule.default;
         return { ...defaultConfig, ...customConfig };
       } else {
-        const { readFile } = await import('node:fs/promises');
-        const customConfig = JSON.parse(await readFile(configPath, 'utf8'));
-        return { ...defaultConfig, ...customConfig };
+        console.error('Config file must be a TypeScript (.ts) or JavaScript (.js) file');
+        return defaultConfig;
       }
     } catch (error) {
       console.warn(`⚠️  Failed to load config ${configPath}, using defaults`);

@@ -1,61 +1,30 @@
 export interface Pattern {
   name: string;
   pattern: string;
-  severity: 'high' | 'medium' | 'low';
-  reactions: ReactionType[];
-  message: string;
+  severity?: 'high' | 'medium' | 'low'; // Default: 'medium'
+  reactions?: ReactionType[]; // Default: ['alert']
+  message?: string; // Default: Generated from name
 }
 
 export interface FileTrackingPatterns {
-  filePath: string;
-  editingFile: string;
-  lineNumber: string;
+  filePath?: string; // Default: common file extensions pattern
+  editingFile?: string; // Default: editing/modifying pattern
+  lineNumber?: string; // Default: line number pattern
 }
 
 export interface ReactionConfig {
-  sound: {
-    enabled: boolean;
-    command: string;
-    customCommands?: {
-      darwin?: string;
-      win32?: string;
-      linux?: string;
-    };
-  };
-  interrupt: {
-    enabled: boolean;
-    delay: number;
-    prefix?: string;
-    suffix?: string;
-  };
-  alert: {
-    enabled: boolean;
-    format: 'color' | 'plain';
-    logFile?: string;
-  };
-  webhook?: {
-    enabled: boolean;
-    url: string;
-    headers?: Record<string, string>;
-  };
+  sound?: boolean | { command?: string }; // Default: true
+  interrupt?: boolean | { delay?: number }; // Default: false
+  alert?: boolean | { format?: 'color' | 'plain' }; // Default: true
+  webhook?: string | { url: string; headers?: Record<string, string> };
 }
 
 export interface Config {
   patterns: Pattern[];
-  reactions: ReactionConfig;
-  debounce: {
-    enabled: boolean;
-    window: number;
-  };
-  fileTracking: {
-    enabled: boolean;
-    patterns: FileTrackingPatterns;
-  };
-  logging?: {
-    enabled: boolean;
-    file: string;
-    level: 'debug' | 'info' | 'warn' | 'error';
-  };
+  reactions?: ReactionConfig; // Default: { sound: true, alert: true, interrupt: false }
+  debounce?: number | false; // Debounce window in ms, or false to disable. Default: 2000
+  fileTracking?: boolean | FileTrackingPatterns; // Default: true (uses default patterns)
+  logging?: string | { file: string; level?: 'debug' | 'info' | 'warn' | 'error' }; // Path or config
 }
 
 export interface FileContext {

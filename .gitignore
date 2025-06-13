@@ -11,3 +11,4 @@ dist/
 !jest.config.js
 coverage/
 .nyc_output/
+bun.lock

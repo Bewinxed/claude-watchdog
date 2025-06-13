@@ -50,5 +50,12 @@
     "prepublishOnly": "bun run prepare"
   },
   "type": "module",
-  "types": "dist/llm-whip.d.ts"
+  "types": "dist/llm-whip.d.ts",
+  "dependencies": {
+    "ignore": "^7.0.5"
+  },
+  "private": true,
+  "peerDependencies": {
+    "typescript": "^5.8.3"
+  }
 }

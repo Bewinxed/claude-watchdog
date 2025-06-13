@@ -175,7 +175,7 @@ describe("ClaudeWatchdog", () => {
     test("should load default patterns when none provided", () => {
       const defaultWatchdog = new ClaudeWatchdog({});
       // @ts-ignore
-      expect(defaultWatchdog.config.patterns.length).toBeGreaterThan(10);
+      expect(defaultWatchdog.config.patterns.length).toBeGreaterThan(3);
     });
 
     test("should detect various cheat patterns", () => {

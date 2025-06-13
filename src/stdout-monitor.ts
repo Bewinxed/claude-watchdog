@@ -1,5 +1,5 @@
-// Using Bun.watch instead of fs.watch
 import { readFile } from "fs/promises";
+import { watchFile } from "fs";
 import { EventEmitter } from "events";
 import type { Config, MatchInfo } from "./types";
 
@@ -18,23 +18,16 @@ export class StdoutMonitor extends EventEmitter {
   async start() {
     console.log(`📜 Monitoring stdout log: ${this.logFilePath}`);
     
-    // Use Bun's native file watcher
-    const watcher = Bun.watch(this.logFilePath, {
-      onError: (error) => {
-        console.error(`Log watcher error:`, error);
-      }
+    // Use Node.js fs.watchFile for file monitoring
+    watchFile(this.logFilePath, { interval: 100 }, async () => {
+      await this.processNewContent();
     });
 
-    this.watcher = () => watcher.close();
-
-    // Handle file changes
-    (async () => {
-      for await (const event of watcher) {
-        if (event.kind === 'change') {
-          await this.processNewContent();
-        }
-      }
-    })();
+    this.watcher = () => {
+      // Unwatchfile needs the path
+      const { unwatchFile } = require('fs');
+      unwatchFile(this.logFilePath);
+    };
 
     // Process existing content
     await this.processNewContent();

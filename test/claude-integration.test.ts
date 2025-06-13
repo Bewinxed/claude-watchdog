@@ -5,32 +5,43 @@ import { join } from "path";
 
 describe("Claude Integration Test", () => {
   const testDir = join(__dirname, "claude-test-workspace");
-  const configPath = join(testDir, "watchdog-config.json");
+  const configPath = join(testDir, "watchdog-config.ts");
   let watchdogProcess: ChildProcess | null = null;
 
   beforeAll(async () => {
     await mkdir(testDir, { recursive: true });
     
     // Create watchdog config
-    const config = {
-      patterns: [
-        {
-          name: "todo-cheat",
-          pattern: "TODO",
-          severity: "high",
-          reactions: ["alert"],
-          message: "🚨 TODO DETECTED - NO CHEATING!"
-        }
-      ],
-      reactions: {
-        sound: { enabled: false },
-        interrupt: { enabled: false },
-        alert: { enabled: true, format: "plain" }
-      },
-      debounce: { enabled: false }
-    };
+    const configContent = `import type { Config } from '../../src/types';
 
-    await writeFile(configPath, JSON.stringify(config, null, 2));
+export const config: Config = {
+  patterns: [
+    {
+      name: "todo-cheat",
+      pattern: "TODO",
+      severity: "high",
+      reactions: ["alert"],
+      message: "🚨 TODO DETECTED - NO CHEATING!"
+    }
+  ],
+  reactions: {
+    sound: { enabled: false, command: "" },
+    interrupt: { enabled: false, delay: 0 },
+    alert: { enabled: true, format: "plain" }
+  },
+  debounce: { enabled: false, window: 0 },
+  fileTracking: {
+    enabled: false,
+    patterns: {
+      filePath: "",
+      editingFile: "",
+      lineNumber: ""
+    }
+  }
+};
+`;
+
+    await writeFile(configPath, configContent);
   });
 
   afterAll(async () => {
