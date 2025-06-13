@@ -1,4 +1,4 @@
-import { createHash } from 'node:crypto';
+import { createHash } from "node:crypto";
 
 interface BaselineEntry {
   file: string;
@@ -16,69 +16,88 @@ export class BaselineTracker {
   private static baseline: Baseline | null = null;
 
   static async createBaseline(entries: BaselineEntry[]): Promise<void> {
-    this.baseline = {
+    BaselineTracker.baseline = {
       timestamp: Date.now(),
-      entries
+      entries,
     };
     console.log(`📸 Created baseline with ${entries.length} existing patterns`);
   }
 
   static async loadBaseline(): Promise<Baseline | null> {
-    return this.baseline;
+    return BaselineTracker.baseline;
   }
 
   static async hasBaseline(): Promise<boolean> {
-    return this.baseline !== null;
+    return BaselineTracker.baseline !== null;
   }
 
-  static isNewPattern(file: string, line: number, pattern: string, fullLine: string, baseline: Baseline): boolean {
-    const contentHash = this.hashContent(fullLine);
-    
-    return !baseline.entries.some(entry => 
-      entry.file === file &&
-      entry.line === line &&
-      entry.pattern === pattern &&
-      entry.contentHash === contentHash
+  static isNewPattern(
+    file: string,
+    line: number,
+    pattern: string,
+    fullLine: string,
+    baseline: Baseline,
+  ): boolean {
+    const contentHash = BaselineTracker.hashContent(fullLine);
+
+    return !baseline.entries.some(
+      (entry) =>
+        entry.file === file &&
+        entry.line === line &&
+        entry.pattern === pattern &&
+        entry.contentHash === contentHash,
     );
   }
 
-  static createBaselineEntry(file: string, line: number, pattern: string, fullLine: string): BaselineEntry {
+  static createBaselineEntry(
+    file: string,
+    line: number,
+    pattern: string,
+    fullLine: string,
+  ): BaselineEntry {
     return {
       file,
       line,
       pattern,
-      contentHash: this.hashContent(fullLine)
+      contentHash: BaselineTracker.hashContent(fullLine),
     };
   }
 
   private static hashContent(content: string): string {
-    return createHash('md5').update(content.trim()).digest('hex');
+    return createHash("md5").update(content.trim()).digest("hex");
   }
 
   static async updateBaseline(newEntries: BaselineEntry[]): Promise<void> {
-    if (!this.baseline) {
-      await this.createBaseline(newEntries);
+    if (!BaselineTracker.baseline) {
+      await BaselineTracker.createBaseline(newEntries);
       return;
     }
 
     // Merge new entries with existing ones
     const existingKeys = new Set(
-      this.baseline.entries.map(e => `${e.file}:${e.line}:${e.pattern}:${e.contentHash}`)
+      BaselineTracker.baseline.entries.map(
+        (e) => `${e.file}:${e.line}:${e.pattern}:${e.contentHash}`,
+      ),
     );
 
-    const uniqueNewEntries = newEntries.filter(entry => 
-      !existingKeys.has(`${entry.file}:${entry.line}:${entry.pattern}:${entry.contentHash}`)
+    const uniqueNewEntries = newEntries.filter(
+      (entry) =>
+        !existingKeys.has(
+          `${entry.file}:${entry.line}:${entry.pattern}:${entry.contentHash}`,
+        ),
     );
 
     if (uniqueNewEntries.length > 0) {
-      this.baseline.entries.push(...uniqueNewEntries);
-      this.baseline.timestamp = Date.now();
-      console.log(`📸 Updated baseline with ${uniqueNewEntries.length} new patterns`);
+      BaselineTracker.baseline.entries.push(...uniqueNewEntries);
+      BaselineTracker.baseline.timestamp = Date.now();
+      console.log(
+        `📸 Updated baseline with ${uniqueNewEntries.length} new patterns`,
+      );
     }
   }
 
   static async clearBaseline(): Promise<void> {
-    this.baseline = null;
-    console.log('🗑️ Cleared baseline');
+    BaselineTracker.baseline = null;
+    console.log("🗑️ Cleared baseline");
   }
 }

@@ -7,7 +7,7 @@ export interface Pattern {
   /** JavaScript regular expression to match against file content */
   pattern: string;
   /** Severity level affecting alert display and priority */
-  severity?: 'high' | 'medium' | 'low'; // Default: 'medium'
+  severity?: "high" | "medium" | "low"; // Default: 'medium'
   /** Actions to trigger when pattern is detected */
   reactions?: ReactionType[]; // Default: ['alert']
   /** Custom message displayed when pattern is found */
@@ -37,7 +37,7 @@ export interface ReactionConfig {
   /** Enable keyboard interrupts with optional delay */
   interrupt?: boolean | { delay?: number }; // Default: false
   /** Enable console alerts with formatting options */
-  alert?: boolean | { format?: 'color' | 'plain' }; // Default: true
+  alert?: boolean | { format?: "color" | "plain" }; // Default: true
   /** Webhook URL for external notifications */
   webhook?: string | { url: string; headers?: Record<string, string> };
 }
@@ -55,7 +55,9 @@ export interface Config {
   /** File tracking configuration for context detection */
   fileTracking?: boolean | FileTrackingPatterns; // Default: true (uses default patterns)
   /** Logging configuration for debugging and monitoring */
-  logging?: string | { file: string; level?: 'debug' | 'info' | 'warn' | 'error' }; // Path or config
+  logging?:
+    | string
+    | { file: string; level?: "debug" | "info" | "warn" | "error" }; // Path or config
 }
 
 /**
@@ -103,14 +105,14 @@ export interface MatchInfo {
 }
 
 /** Available reaction types that can be triggered when patterns are detected */
-export type ReactionType = 'sound' | 'interrupt' | 'alert' | 'webhook';
+export type ReactionType = "sound" | "interrupt" | "alert" | "webhook";
 
 /**
  * Event emitted by the file watcher system
  */
 export interface WatchdogEvent {
   /** Type of event that occurred */
-  type: 'match' | 'start' | 'stop' | 'error';
+  type: "match" | "start" | "stop" | "error";
   /** Event-specific data payload */
   data: unknown;
   /** When the event occurred */

@@ -1,7 +1,7 @@
-import { describe, test, expect, beforeAll, afterAll } from "bun:test";
-import { spawn } from "child_process";
-import { mkdir, writeFile, rm } from "fs/promises";
-import { join } from "path";
+import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import { spawn } from "node:child_process";
+import { mkdir, rm, writeFile } from "node:fs/promises";
+import { join } from "node:path";
 
 describe("Simple Watchdog Test", () => {
   const testDir = join(__dirname, "simple-test");
@@ -9,7 +9,7 @@ describe("Simple Watchdog Test", () => {
 
   beforeAll(async () => {
     await mkdir(testDir, { recursive: true });
-    
+
     const configContent = `import type { Config } from '../../src/types';
 
 export const config: Config = {
@@ -49,11 +49,15 @@ export const config: Config = {
   test("file watch mode detects TODO", async () => {
     return new Promise<void>(async (resolve, reject) => {
       const watchdogScript = join(__dirname, "..", "src", "llm-whip.ts");
-      
+
       // Start watchdog in file watch mode
-      const watchdog = spawn("bun", [watchdogScript, "watch", testDir, `--config=${configPath}`], {
-        stdio: ["pipe", "pipe", "pipe"]
-      });
+      const watchdog = spawn(
+        "bun",
+        [watchdogScript, "watch", testDir, `--config=${configPath}`],
+        {
+          stdio: ["pipe", "pipe", "pipe"],
+        },
+      );
 
       let alertFound = false;
 

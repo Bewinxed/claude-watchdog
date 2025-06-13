@@ -1,7 +1,7 @@
-import { describe, test, expect, beforeAll, afterAll } from "bun:test";
-import { spawn, type ChildProcess } from "child_process";
-import { mkdir, writeFile, rm } from "fs/promises";
-import { join } from "path";
+import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import { type ChildProcess, spawn } from "node:child_process";
+import { mkdir, rm, writeFile } from "node:fs/promises";
+import { join } from "node:path";
 
 describe("LLM Integration Test", () => {
   const testDir = join(__dirname, "llm-test-workspace");
@@ -10,7 +10,7 @@ describe("LLM Integration Test", () => {
 
   beforeAll(async () => {
     await mkdir(testDir, { recursive: true });
-    
+
     // Create watchdog config
     const configContent = `import type { Config } from '../../src/types';
 
@@ -53,11 +53,15 @@ export const config: Config = {
 
   test("should catch TODO when LLM generates code", async () => {
     return new Promise<void>(async (resolve, reject) => {
-      // Start watchdog in file watch mode  
+      // Start watchdog in file watch mode
       const watchdogScript = join(__dirname, "..", "src", "llm-whip.ts");
-      watchdogProcess = spawn("bun", [watchdogScript, "watch", testDir, `--config=${configPath}`], {
-        stdio: ["pipe", "pipe", "pipe"]
-      });
+      watchdogProcess = spawn(
+        "bun",
+        [watchdogScript, "watch", testDir, `--config=${configPath}`],
+        {
+          stdio: ["pipe", "pipe", "pipe"],
+        },
+      );
 
       let alertFound = false;
 
@@ -65,7 +69,10 @@ export const config: Config = {
         const output = data.toString();
         console.log("[WATCHDOG]", output);
         // Look for the pattern in the new clack output format
-        if (output.includes("TODO") && (output.includes("detected") || output.includes("todo-cheat"))) {
+        if (
+          output.includes("TODO") &&
+          (output.includes("detected") || output.includes("todo-cheat"))
+        ) {
           alertFound = true;
           watchdogProcess?.kill();
           resolve();
@@ -85,42 +92,49 @@ export const config: Config = {
         // Spawn LLM tool with a prompt that will create a TODO
         const llmProcess = spawn("claude", ["--print"], {
           cwd: testDir,
-          stdio: ["pipe", "pipe", "pipe"]
+          stdio: ["pipe", "pipe", "pipe"],
         });
 
         let llmOutput = "";
-        
+
         llmProcess.stdout.on("data", (data) => {
           llmOutput += data.toString();
         });
 
         // Send the prompt via stdin
-        llmProcess.stdin?.write("Create a simple TypeScript function with a TODO comment\n");
+        llmProcess.stdin?.write(
+          "Create a simple TypeScript function with a TODO comment\n",
+        );
         llmProcess.stdin?.end();
 
         llmProcess.on("exit", async (code) => {
           console.log("✅ LLM tool finished with code:", code);
           console.log("LLM output length:", llmOutput.length);
           console.log("LLM output contains TODO:", llmOutput.includes("TODO"));
-          
+
           if (llmOutput.includes("TODO")) {
             // Save LLM's output to a file (this should trigger the watchdog)
             await writeFile(join(testDir, "llm-output.ts"), llmOutput);
             console.log("💾 Saved file, waiting for watchdog...");
-            
+
             // Wait longer for watchdog to detect
             await Bun.sleep(2000);
-            
+
             if (!alertFound) {
               watchdogProcess?.kill();
-              reject(new Error("Watchdog did not detect the TODO pattern in file"));
+              reject(
+                new Error("Watchdog did not detect the TODO pattern in file"),
+              );
             }
           } else {
             // LLM didn't create a TODO, create one manually to test watchdog
             console.log("🔧 LLM didn't create TODO, creating manual test...");
-            await writeFile(join(testDir, "manual-test.ts"), "// TODO: test pattern\nfunction test() {}");
+            await writeFile(
+              join(testDir, "manual-test.ts"),
+              "// TODO: test pattern\nfunction test() {}",
+            );
             await Bun.sleep(2000);
-            
+
             if (!alertFound) {
               watchdogProcess?.kill();
               reject(new Error("Watchdog did not detect manual TODO pattern"));
@@ -140,11 +154,12 @@ export const config: Config = {
           llmProcess.kill();
           if (!alertFound) {
             watchdogProcess?.kill();
-            console.log("⏱️ Test timed out, but that's OK if LLM tool is not available");
+            console.log(
+              "⏱️ Test timed out, but that's OK if LLM tool is not available",
+            );
             resolve(); // Don't fail the test if LLM tool is not available
           }
         }, 10000);
-
       } catch (error) {
         reject(error);
       }
