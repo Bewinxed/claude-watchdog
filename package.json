@@ -1,6 +1,6 @@
 {
 	"name": "llm-whip",
-	"version": "1.0.9",
+	"version": "1.0.10",
 	"author": "bewinxed",
 	"repository": {
 		"type": "git",
@@ -55,6 +55,10 @@
 	},
 	"type": "module",
 	"types": "dist/llm-whip.d.ts",
+	"exports": {
+		".": "./dist/llm-whip.js",
+		"./types": "./src/types.ts"
+	},
 	"dependencies": {
 		"@clack/prompts": "^0.11.0",
 		"ignore": "^7.0.5"
