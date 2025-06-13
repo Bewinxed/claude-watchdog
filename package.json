@@ -1,6 +1,6 @@
 {
 	"name": "llm-whip",
-	"version": "1.0.3",
+	"version": "1.0.5",
 	"author": "bewinxed",
 	"repository": {
 		"type": "git",
@@ -47,7 +47,11 @@
 		"test:watch": "bun test --watch",
 		"clean": "rm -rf dist",
 		"prepare": "bun run clean && bun run build",
-		"prepublishOnly": "bun run prepare"
+		"prepublishOnly": "bun run prepare",
+		"release": "bun run prepare && bun publish",
+		"release:patch": "npm version patch --force && bun run release",
+		"release:minor": "npm version minor --force && bun run release",
+		"release:major": "npm version major --force && bun run release"
 	},
 	"type": "module",
 	"types": "dist/llm-whip.d.ts",
