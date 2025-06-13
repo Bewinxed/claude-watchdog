@@ -7,6 +7,8 @@ import ignore from "ignore";
 import type { Config, MatchInfo, FileContext } from "./types";
 import { KeyboardController } from "./keyboard-controller";
 import { BaselineTracker } from "./baseline-tracker";
+import * as p from '@clack/prompts';
+import color from 'picocolors';
 
 interface WatcherOptions {
   config: Config;
@@ -44,7 +46,8 @@ export class FileWatcher extends EventEmitter {
     
     // Default ignore patterns
     this.ignorePatterns = (options.ignorePatterns || [
-      'node_modules', 'dist', 'build', '.git', 'coverage', '.next'
+      'node_modules', 'dist', 'build', '.git', 'coverage', '.next', 
+      'llm-whip\\.config\\.(ts|js)'
     ]).map(pattern => new RegExp(pattern));
     
     // Grep patterns for filtering file content
@@ -58,28 +61,39 @@ export class FileWatcher extends EventEmitter {
   }
 
   async start() {
-    console.log(`🔍 Watching ${this.directories.length} directories for anti-patterns...`);
-    console.log(`📝 Monitoring ${this.config.patterns.length} patterns`);
-    console.log(`📁 File extensions: ${Array.from(this.fileExtensions).join(', ')}`);
-    console.log(`⌨️  Will send keyboard interrupts to active window when patterns detected`);
+    console.log();
+    p.intro(color.bgYellow(color.black(' LLM Whip Watch Mode ')));
+    
+    const info = [
+      `Watching ${color.cyan(this.directories.length.toString())} directories`,
+      `Monitoring ${color.cyan(this.config.patterns.length.toString())} patterns`,
+      `Extensions: ${color.dim(Array.from(this.fileExtensions).join(', '))}`,
+    ];
     
     if (this.respectGitignore) {
-      console.log(`🚫 Respecting .gitignore patterns`);
+      info.push(`Respecting ${color.dim('.gitignore')} patterns`);
     }
     
     if (this.grepPatterns.length > 0) {
-      console.log(`🔍 Filtering files with grep patterns: ${this.grepPatterns.map(p => p.source).join(', ')}`);
+      info.push(`Grep filter: ${color.dim(this.grepPatterns.map(p => p.source).join(', '))}`);
     }
+    
+    p.note(info.join('\n'), '🔍 Configuration');
     
     // Load baseline for new vs existing pattern detection
+    const spinner = p.spinner();
+    spinner.start('Loading baseline');
+    
     this.baseline = await BaselineTracker.loadBaseline();
     if (this.baseline) {
-      console.log(`📸 Loaded baseline with ${this.baseline.entries.length} existing patterns (will only alert on NEW patterns)`);
+      spinner.stop(`Loaded baseline with ${color.yellow(this.baseline.entries.length.toString())} existing patterns`);
+      p.note('Will only alert on NEW patterns', '📸 Baseline Mode');
     } else {
-      console.log(`📸 No baseline found - will alert on ALL patterns. Run 'llm-whip audit' first to create baseline.`);
+      spinner.stop('No baseline found');
+      p.note(`Will alert on ALL patterns\nRun ${color.cyan('llm-whip audit')} first to create baseline`, '📸 No Baseline');
     }
     
-    console.log(`🎯 Focus your Claude window and start coding...\n`);
+    p.outro(color.dim('Watching for changes... Press Ctrl+C to stop'));
     
     // Initialize keyboard controller
     await KeyboardController.init();
@@ -217,7 +231,7 @@ export class FileWatcher extends EventEmitter {
           continue; // Skip existing patterns
         }
 
-        const matchInfo: MatchInfo = {
+        const matchInfo: MatchInfo & { patternConfig?: typeof patternConfig } = {
           pattern: patternConfig.name,
           severity: patternConfig.severity || 'medium',
           match: match[0],
@@ -228,7 +242,8 @@ export class FileWatcher extends EventEmitter {
           line: lineNumber.toString(),
           context: this.getContext(line, match.index),
           timestamp: Date.now(),
-          fullLine: fullLineContent
+          fullLine: fullLineContent,
+          patternConfig // Store the full pattern config for interrupt messages
         };
 
         // Check debounce
@@ -315,18 +330,23 @@ export class FileWatcher extends EventEmitter {
   }
 
   private showAlert(match: MatchInfo) {
-    const timestamp = new Date().toISOString();
+    const timestamp = new Date().toLocaleTimeString();
     const alertConfig = this.config.reactions?.alert;
     const format = typeof alertConfig === 'object' && alertConfig?.format ? alertConfig.format : 'color';
     
+    console.log(); // Add spacing
+    
     if (format === 'color') {
-      console.log(
-        `\n\x1b[33m[WATCHDOG ${timestamp}]\x1b[0m \x1b[31m${match.pattern}\x1b[0m`
+      const severityColor = match.severity === 'high' ? color.red : match.severity === 'medium' ? color.yellow : color.green;
+      const emoji = match.severity === 'high' ? '🔴' : match.severity === 'medium' ? '🟡' : '🟢';
+      
+      p.log.warning(
+        `${emoji} ${severityColor(match.pattern.toUpperCase())} detected at ${color.dim(timestamp)}\n` +
+        `${color.cyan(match.file)}:${color.dim(match.line)}\n` +
+        `${color.dim('Message:')} ${match.message}\n` +
+        `${color.dim('Code:')} ${match.fullLine}\n` +
+        `${color.dim('Match:')} ${severityColor(`"${match.match}"`)}`
       );
-      console.log(`📁 File: \x1b[36m${match.file}:${match.line}\x1b[0m`);
-      console.log(`💬 Message: \x1b[91m${match.message}\x1b[0m`);
-      console.log(`📝 Line: "${match.fullLine}"`);
-      console.log(`🔍 Context: "${match.context}"`);
     } else {
       // Plain format - output to stdout for test compatibility
       console.log(
@@ -339,7 +359,7 @@ export class FileWatcher extends EventEmitter {
     }
   }
 
-  private async sendKeyboardInterrupt(match: MatchInfo) {
+  private async sendKeyboardInterrupt(match: MatchInfo & { patternConfig?: any }) {
     const location = `${match.file}:${match.line}`;
     
     // Show local alert
@@ -351,8 +371,18 @@ export class FileWatcher extends EventEmitter {
       `\x1b[41m\x1b[97m${'🚨'.repeat(41)}\x1b[0m\n\n`
     );
     
-    // Send keyboard interrupt to Claude
-    const success = await KeyboardController.sendInterruptSequence(match.message, location);
+    // Use custom interrupt message if available, otherwise fall back to generic message
+    const interruptMessage = match.patternConfig?.interruptMessage || 
+      match.message || 
+      `${match.pattern} detected - please review and fix`;
+    
+    // Send keyboard interrupt to Claude with detailed information
+    const success = await KeyboardController.sendInterruptSequence(
+      interruptMessage, 
+      location, 
+      match.pattern, 
+      match.fullLine
+    );
     
     if (!success) {
       process.stderr.write(
@@ -361,7 +391,7 @@ export class FileWatcher extends EventEmitter {
       
       // Fallback to system notification
       await KeyboardController.sendNotification(
-        'Claude Watchdog - Anti-Cheat Detected',
+        'LLM Whip - Anti-Cheat Detected',
         `${match.message} at ${location}`
       );
     }

@@ -1,96 +1,18 @@
-#!/usr/bin/env node
-
-import { spawn, type ChildProcess } from 'child_process';
-import { EventEmitter } from 'events';
 import * as fs from 'fs';
 import * as path from 'path';
 import type { Config } from './types';
 import { config as rootConfig } from '../llm-whip.config';
 import { showHelp } from './cli-help';
 import { FileWatcher } from './file-watcher';
-import { ClaudeLauncher } from './claude-launcher';
 import { InitCommand } from './init-command';
 import { AuditCommand } from './audit-command';
-import { PermissionManager } from './permission-manager';
 
-class ClaudeWatchdog extends EventEmitter {
-  private config: Config;
-  private claudeProcess: ChildProcess | null = null;
-
-  constructor(customConfig: Partial<Config> = {}) {
-    super();
-    this.config = this.loadConfig(customConfig);
-  }
-
-  private loadConfig(customConfig: Partial<Config>): Config {
-    const defaultConfig: Config = rootConfig;
-    return { ...defaultConfig, ...customConfig };
-  }
-
-
-
-  public start(claudeArgs: string[] = []): void {
-    const claudePath = process.env.CLAUDE_PATH || 'claude';
-    
-    // Show startup message
-    process.stderr.write('\x1b[90m[WATCHDOG]\x1b[0m Starting Claude...\n');
-    process.stderr.write('\x1b[90m[WATCHDOG]\x1b[0m Note: Use "claude-watchdog watch ./src" for real-time file monitoring\n\n');
-    
-    // For Claude TUI, we pass through completely to avoid breaking the interface
-    // Real-time monitoring works best with "watch" mode
-    this.claudeProcess = spawn(claudePath, claudeArgs, {
-      stdio: 'inherit',
-      env: { ...process.env }
-    });
-
-    // Note: stdout/stderr monitoring is set up above based on mode
-
-    // Handle process exit
-    this.claudeProcess.on('exit', (code) => {
-      console.log('\n\x1b[90m[WATCHDOG]\x1b[0m Claude session ended');
-      process.exit(code || 0);
-    });
-
-    // Handle errors
-    this.claudeProcess.on('error', (err) => {
-      console.error('\x1b[91m[WATCHDOG ERROR]\x1b[0m Failed to start Claude:', err.message);
-      console.error('\x1b[93mTip:\x1b[0m Make sure Claude CLI is installed and in your PATH');
-      process.exit(1);
-    });
-
-    // Proper signal handling for Ctrl+C
-    const handleExit = (signal: string) => {
-      console.log(`\n\x1b[90m[WATCHDOG]\x1b[0m Received ${signal}, shutting down...`);
-      if (this.claudeProcess && !this.claudeProcess.killed) {
-        this.claudeProcess.kill('SIGTERM');
-        // Give Claude time to clean up
-        setTimeout(() => {
-          if (!this.claudeProcess!.killed) {
-            this.claudeProcess!.kill('SIGKILL');
-          }
-          process.exit(0);
-        }, 1000);
-      } else {
-        process.exit(0);
-      }
-    };
-
-    process.on('SIGINT', () => handleExit('SIGINT'));
-    process.on('SIGTERM', () => handleExit('SIGTERM'));
-    process.on('SIGHUP', () => handleExit('SIGHUP'));
-  }
-}
 
 async function findConfigFile(): Promise<string | undefined> {
   const possibleConfigs = [
-    'llm-whip.config.ts',
+    'llm-whip.config.json',
     'llm-whip.config.js',
-    'claude-watchdog.config.ts', // Legacy support
-    'claude-watchdog.config.js',
-    'watchdog.config.ts',
-    'watchdog.config.js',
-    '.llm-whip.ts',
-    '.llm-whip.js'
+    'llm-whip.config.ts'
   ];
 
   for (const configFile of possibleConfigs) {
@@ -105,29 +27,31 @@ async function findConfigFile(): Promise<string | undefined> {
   return undefined;
 }
 
-async function loadTypescriptConfig(configPath: string): Promise<Config | null> {
+async function loadConfig(configPath: string): Promise<Config | null> {
   try {
-    // For TypeScript config files, we need to import them dynamically
-    if (configPath.endsWith('.ts')) {
-      // Use dynamic import for TS files (requires ts-node or similar)
+    if (configPath.endsWith('.json')) {
+      // For JSON files, use fs.readFile
+      const content = await fs.promises.readFile(path.resolve(configPath), 'utf-8');
+      const configData = JSON.parse(content);
+      return configData;
+    } else if (configPath.endsWith('.js')) {
+      // For JS files, use dynamic import
       const configModule = await import(path.resolve(configPath));
       return configModule.config || configModule.default;
     } else {
-      // For JS files, use regular require
-      const configModule = require(path.resolve(configPath));
-      return configModule.config || configModule.default;
+      console.warn(`Unsupported config file type: ${configPath}. Please use JSON (.json) or JavaScript (.js) files.`);
+      return null;
     }
   } catch (error) {
-    console.warn(`Failed to load TypeScript config ${configPath}:`, error);
+    console.warn(`Failed to load config ${configPath}:`, error);
     return null;
   }
 }
 
-// CLI entry point
-if (import.meta.url === `file://${process.argv[1]}`) {
-  const args = process.argv.slice(2);
-  
-  async function main() {
+// CLI entry point - always run when this file is executed
+const args = process.argv.slice(2);
+
+async function main() {
     if (args[0] === 'init') {
       // Initialize configuration
       const targetDir = args[1] || process.cwd();
@@ -170,9 +94,9 @@ if (import.meta.url === `file://${process.argv[1]}`) {
       if (configPath) {
         try {
           // Try TypeScript config first
-          const tsConfig = await loadTypescriptConfig(configPath);
-          if (tsConfig) {
-            config = { ...config, ...tsConfig };
+          const customConfig = await loadConfig(configPath);
+          if (customConfig) {
+            config = { ...config, ...customConfig };
           } else {
             console.error('Config file must be a TypeScript (.ts) or JavaScript (.js) file');
             process.exit(1);
@@ -194,22 +118,56 @@ if (import.meta.url === `file://${process.argv[1]}`) {
         process.exit(0);
       });
     } else {
-      // Default: Background monitoring mode
+      // Default: Watch mode
       if (args.includes('--help') || args.includes('-h')) {
         showHelp();
         process.exit(0);
       }
       
-      // Check for first-time use and permission setup
-      const keyboardEnabled = await PermissionManager.promptForKeyboardPermission();
+      // Get directories (default to current directory if none provided)
+      const directories = args.filter(arg => !arg.startsWith('--') && !arg.startsWith('-'));
+      if (directories.length === 0) {
+        directories.push(process.cwd()); // Default to current directory
+      }
       
-      // Default: Background monitoring mode
       const configPath = args.find(arg => arg.startsWith('--config='))?.split('=')[1] || await findConfigFile();
-      await ClaudeLauncher.startWithWatchdog(configPath, keyboardEnabled);
+      const grepFlag = args.find(arg => arg.startsWith('--grep='));
+      const grepPatterns = grepFlag ? grepFlag.split('=')[1]?.split(',') || [] : [];
+      const keyboardEnabled = args.includes('--interrupt');
+      
+      let config: Config = rootConfig;
+      
+      if (configPath) {
+        try {
+          const customConfig = await loadConfig(configPath);
+          if (customConfig) {
+            config = { ...config, ...customConfig };
+          }
+        } catch (err: unknown) {
+          const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+          console.error('Failed to load config:', errorMessage);
+          process.exit(1);
+        }
+      }
+      
+      // Add keyboard interrupt capability if requested
+      if (keyboardEnabled) {
+        config.reactions = {
+          ...config.reactions,
+          interrupt: { delay: 500 }
+        };
+      }
+      
+      const watcher = new FileWatcher({ config, directories, grepPatterns });
+      watcher.start();
+      
+      // Handle exit
+      process.on('SIGINT', () => {
+        console.log('\nStopping file watcher...');
+        watcher.stop();
+        process.exit(0);
+      });
     }
   }
-  
-  main().catch(console.error);
-}
 
-export default ClaudeWatchdog;
+main().catch(console.error);

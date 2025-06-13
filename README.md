@@ -1,236 +1,208 @@
-# Claude Watchdog
+# LLM Whip
 
-A TypeScript wrapper for Claude CLI that monitors output for lazy coding patterns and anti-patterns, alerting you when the AI tries to take shortcuts.
+[![npm version](https://badge.fury.io/js/llm-whip.svg)](https://www.npmjs.com/package/llm-whip)
+[![npm downloads](https://img.shields.io/npm/dm/llm-whip.svg)](https://www.npmjs.com/package/llm-whip)
+[![CI](https://github.com/bewinxed/llm-whip/workflows/CI/badge.svg)](https://github.com/bewinxed/llm-whip/actions)
+[![TypeScript](https://img.shields.io/badge/TypeScript-Ready-blue.svg)](https://www.typescriptlang.org/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
+![banner](assets/banner.png)
+
+A TypeScript CLI tool that monitors code for lazy patterns and anti-cheat detection when working with LLMs.
+
+## Overview
+
+LLM Whip detects common shortcuts and anti-patterns in code:
+
+-   TODO comments and placeholders
+-   Stub implementations
+-   "The important thing is..." statements
+-   Not implemented errors
+-   Other lazy coding patterns
 
 ## Features
 
-- **Two Operation Modes**:
-  - **Background Mode**: Launch Claude + file monitoring (DEFAULT)
-  - **File Watch**: Monitor directories only
-- **Keyboard Interruption**: Sends actual keystrokes to Claude when cheating detected
-- **File/Line Tracking**: Shows exact file and line number where patterns are found
-- **Multiple Reaction Types**:
-  - Sound alerts + desktop notifications
-  - Keyboard interrupts with custom messages
-  - Console alerts with context
-  - Webhook notifications (optional)
-- **Smart Pattern Detection**: Catches common LLM shortcuts like:
-  - Placeholder comments (`// TODO`, `// for now`)
-  - Fake implementations (`mock`, `stub`, `placeholder`)
-  - Ellipsis skipping (`... rest of implementation`)
-  - Hypothetical code (`would implement`, `could add`)
-  - Hand-wavy descriptions (`just add`, `simply implement`)
-  - Empty implementations (`pass`, `NotImplemented`)
-  - Error suppression (`@ts-ignore`, `# type: ignore`)
-- **Background Monitoring**: 
-  - Runs Claude normally while watching files
-  - Cross-platform keyboard control (macOS, Linux, Windows)
-  - System notifications and sound alerts
-  - Configurable file extensions and ignore patterns
+-   **Directory Auditing**: Scan codebases for existing patterns
+-   **Real-time Monitoring**: Watch files as they change
+-   **TypeScript Configuration**: Type-safe configuration files
+-   **Multiple Output Formats**: Table, JSON, CSV export
+-   **Baseline Tracking**: Alert only on new patterns
+-   **Configurable Patterns**: Define custom detection rules
 
 ## Installation
 
 ```bash
-# Install globally with bun
-bunx claude-watchdog
-
-# Or install as dependency
-bun add claude-watchdog
-
-# Or install globally with npm
-npm install -g claude-watchdog
+bun add -g llm-whip
+# or
+npm install -g llm-whip
 ```
 
 ## Usage
 
-**💡 TIP: Use `claude-watchdog bg` for the best experience!**
-
-### Recommended Usage - Background Mode
-
 ```bash
-# Launch Claude with background file monitoring (BEST)
-bunx claude-watchdog bg
+# Show help
+llm-whip --help
 
-# With custom config
-bunx claude-watchdog bg --config=strict-patterns.json
+# Monitor current directory
+llm-whip
+
+# Monitor specific directories
+llm-whip ./src ./lib
+
+# Monitor with keyboard interrupts (sends text to active window)
+llm-whip ./src --interrupt
+
+# Create configuration file
+llm-whip init
+
+# Audit current directory
+llm-whip audit
 ```
 
-This mode:
-- ✅ Runs Claude normally (no UI disruption)
-- ✅ Monitors current directory in background
-- ✅ **Sends keyboard interrupts** to Claude when patterns detected
-- ✅ Shows exact file and line numbers
-- ✅ Works with any text editor
+## Commands
 
-### File Watch Mode - Monitor Only (No Claude)
+| Command                    | Description                              |
+| -------------------------- | ---------------------------------------- |
+| `llm-whip`                 | Launch Claude with background monitoring |
+| `llm-whip init [dir]`      | Create TypeScript configuration file     |
+| `llm-whip audit [dirs...]` | Scan directories for patterns            |
+| `llm-whip watch <dirs...>` | Monitor directories in real-time         |
 
-```bash
-# Watch directories for anti-patterns
-bunx claude-watchdog watch ./src ./lib
+## Options
 
-# With custom config
-bunx claude-watchdog watch ./src --config=my-patterns.json
-```
-
-### Claude Wrapper Mode with Custom Configuration
-
-```bash
-# Use custom config file
-bunx claude-watchdog --config=my-patterns.json
-
-# Pass arguments to Claude
-bunx claude-watchdog --model claude-3-opus --temperature 0.7
-```
+| Option              | Description                                              |
+| ------------------- | -------------------------------------------------------- |
+| `--config=<path>`   | Custom configuration file                                |
+| `--format=<type>`   | Audit output format (table/json/csv)                     |
+| `--grep=<patterns>` | Filter files by content patterns                         |
+| `--interrupt`       | Enable keyboard interrupts (sends text to active window) |
 
 ## Configuration
 
-Create a JSON configuration file to customize patterns and reactions:
+Create `llm-whip.config.ts`:
 
-```json
-{
-  "patterns": [
-    {
-      "name": "placeholder-comment",
-      "pattern": "//\\s*(placeholder|todo|fixme|for now)",
-      "severity": "high",
-      "reactions": ["sound", "interrupt"],
-      "message": "DO NOT CHEAT - Write production-ready code!"
-    }
-  ],
-  "reactions": {
-    "sound": {
-      "enabled": true,
-      "command": "afplay /System/Library/Sounds/Basso.aiff"
-    },
-    "interrupt": {
-      "enabled": true,
-      "delay": 100,
-      "prefix": "\n⚠️  WATCHDOG: ",
-      "suffix": "\n"
-    },
-    "alert": {
-      "enabled": true,
-      "format": "color",
-      "logFile": "./watchdog.log"
-    }
-  },
-  "debounce": {
-    "enabled": true,
-    "window": 5000
-  },
-  "fileTracking": {
-    "enabled": true,
-    "patterns": {
-      "filePath": "(?:^|\\s)([\\/\\w\\-\\.]+\\.(js|ts|py|java|cpp|c|go|rs|rb|php|jsx|tsx|vue|svelte))",
-      "editingFile": "(?:editing|modifying|updating|writing to|creating)\\s+([\\/\\w\\-\\.]+\\.\\w+)",
-      "lineNumber": "line\\s+(\\d+)|:(\\d+):|at\\s+(\\d+)"
-    }
-  }
-}
+```typescript
+import type { Config } from 'llm-whip/types';
+
+export const config: Config = {
+	patterns: [
+		{
+			name: 'todo',
+			pattern: 'TODO',
+			severity: 'high',
+			reactions: ['sound', 'alert', 'interrupt'],
+			message: 'TODO comment detected',
+			interruptMessage:
+				'TODO comments should be completed before submitting code. Please implement the actual functionality instead of leaving placeholder comments.',
+		},
+		{
+			name: 'important-thing',
+			pattern: 'The important thing is',
+			severity: 'medium',
+			reactions: ['alert'],
+			interruptMessage:
+				"Detected 'The important thing is...' - this often indicates avoiding detailed implementation. Please provide specific, actionable details.",
+		},
+	],
+	reactions: {
+		sound: { command: 'afplay /System/Library/Sounds/Basso.aiff' },
+		interrupt: { delay: 500 },
+		alert: { format: 'color' },
+	},
+	debounce: 2000,
+	fileTracking: true,
+};
 ```
-
-### Pattern Configuration
-
-Each pattern object supports:
-- `name`: Identifier for the pattern
-- `pattern`: Regular expression (as string)
-- `severity`: "high", "medium", or "low"
-- `reactions`: Array of reactions to trigger
-- `message`: Message to display/send on match
-
-### Available Reactions
-
-1. **sound**: Plays system sound
-2. **interrupt**: Sends message to Claude's stdin
-3. **alert**: Prints formatted warning to console
-4. **webhook**: Send notification to external service (configure in reactions)
-
-### File Tracking
-
-The watchdog automatically detects:
-- File paths mentioned in output
-- "Editing/modifying/creating" statements
-- Line numbers in various formats
 
 ## Default Patterns
 
-The watchdog includes 12 default patterns that catch common shortcuts:
+Patterns use **JavaScript regex syntax** and are case-insensitive by default:
 
-- `// TODO`, `// FIXME`, `// placeholder`, `// for now`
-- `mock implementation`, `stub function`
-- `... rest of code`, `... additional logic`
-- `would implement`, `could add`
-- `not implemented`, `NotImplementedError`
-- `coming soon`, `to be implemented`
-- Empty `pass` statements
-- Error suppressions (`@ts-ignore`, `# noqa`)
-- Debug console logs with TODOs
+| Pattern           | Regex                                  | Example Match                        |
+| ----------------- | -------------------------------------- | ------------------------------------ |
+| `todo`            | `TODO`                                 | `// TODO: implement this`            |
+| `placeholder`     | `placeholder\|stub`                    | `// placeholder implementation`      |
+| `not-implemented` | `not implemented\|NotImplementedError` | `throw new Error("not implemented")` |
+| `important-thing` | `The important thing is`               | `The important thing is to...`       |
 
-## Platform-Specific Sound Commands
+**Custom Pattern Examples:**
 
-Default sound commands for each platform:
-- **macOS**: `afplay /System/Library/Sounds/Basso.aiff`
-- **Windows**: `powershell -c (New-Object Media.SoundPlayer "C:\\Windows\\Media\\chord.wav").PlaySync()`
-- **Linux**: `paplay /usr/share/sounds/freedesktop/stereo/bell.oga`
+```typescript
+{
+  name: "fixme",
+  pattern: "FIXME\|BUG\|HACK",  // Matches FIXME, BUG, or HACK
+  severity: "high"
+},
+{
+  name: "console-log",
+  pattern: "console\\.(log\|debug)",  // Matches console.log or console.debug
+  severity: "low"
+}
+```
 
-You can customize these in your configuration file.
+## Keyboard Interrupts
+
+The `--interrupt` flag enables keyboard interrupts that send detailed messages to the active window when patterns are detected:
+
+```bash
+# Enable keyboard interrupts
+llm-whip ./src --interrupt
+```
+
+When a pattern is detected, LLM Whip will:
+
+1. Send Escape and Ctrl+C to the active window
+2. Type a detailed message including:
+    - Pattern type and custom message
+    - File path and line number
+    - The detected code line
+    - Timestamp
+
+Each pattern can have a custom `interruptMessage` that gets sent to Claude:
+
+```typescript
+{
+  name: "todo",
+  pattern: "TODO",
+  reactions: ["interrupt"],
+  interruptMessage: "TODO comments should be completed before submitting code. Please implement the actual functionality instead of leaving placeholder comments."
+}
+```
+
+## Advanced Usage
+
+### Baseline Tracking
+
+Only alert on new patterns:
+
+```bash
+llm-whip audit ./src > /dev/null
+llm-whip watch ./src
+```
+
+### Export Formats
+
+```bash
+# JSON export
+llm-whip audit ./src --format=json > issues.json
+
+# CSV export
+llm-whip audit ./src --format=csv > issues.csv
+```
+
+### Configuration Priority
+
+1. Local `llm-whip.config.ts` (current directory)
+2. Custom path via `--config=path`
+3. Built-in defaults
 
 ## Development
 
 ```bash
-# Install dependencies
 bun install
-
-# Build TypeScript
-bun run build
-
-# Build standalone executable
-bun run build:standalone
-
-# Run directly with Bun
-bun run dev
-
-# Run tests
 bun test
-
-# Run tests in watch mode
-bun test --watch
+bun run build
 ```
-
-## Architecture
-
-### Claude Wrapper Mode
-The watchdog works by:
-1. Spawning Claude CLI as a child process
-2. Intercepting stdout/stderr streams
-3. Parsing output line-by-line for context and patterns
-4. Maintaining file/line context from Claude's output
-5. Executing configured reactions when patterns match
-6. Passing through all I/O transparently
-
-### Watch Mode
-File watching works by:
-1. Using Bun's native file watcher for efficient monitoring
-2. Watching specified directories recursively
-3. Processing only files with allowed extensions
-4. Scanning file contents when changes are detected
-5. Tracking matches with file path and line numbers
-6. Executing same reactions as wrapper mode
-
-## Advanced Features
-
-- **Debouncing**: Prevents repeated alerts for the same issue
-- **Context Tracking**: Maintains history of files being edited
-- **Extensible**: Easy to add new patterns and reaction types
-- **TypeScript**: Full type safety and IDE support
-
-## Contributing
-
-Pull requests are welcome! Please make sure to:
-1. Add tests for new features
-2. Update documentation
-3. Follow the existing code style
-4. Build and test before submitting
 
 ## License
 

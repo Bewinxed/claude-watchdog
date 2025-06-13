@@ -1,18 +1,27 @@
-import { writeFile, access } from 'fs/promises';
+import { writeFile, access, readFile } from 'fs/promises';
 import { join } from 'path';
+import * as p from '@clack/prompts';
+import color from 'picocolors';
+import { config as defaultConfig } from '../llm-whip.config';
 
 export class InitCommand {
   static async run(targetDir: string = process.cwd()): Promise<void> {
-    const configPath = join(targetDir, 'llm-whip.config.ts');
+    const configPath = join(targetDir, 'llm-whip.config.json');
+    
+    console.log();
+    p.intro(color.bgBlue(color.white(' LLM Whip Init ')));
     
     try {
       // Check if config already exists
       await access(configPath);
-      console.log('⚠️  Configuration file already exists at:', configPath);
       
-      const response = await this.promptUser('Overwrite existing config? (y/n): ');
-      if (!response.toLowerCase().startsWith('y')) {
-        console.log('❌ Configuration not created.');
+      const shouldOverwrite = await p.confirm({
+        message: `Configuration file already exists at ${color.cyan(configPath)}. Overwrite?`,
+        initialValue: false
+      });
+      
+      if (!shouldOverwrite) {
+        p.cancel('Configuration not created.');
         return;
       }
     } catch {
@@ -20,32 +29,22 @@ export class InitCommand {
     }
 
     try {
-      const configContent = `import type { Config } from './src/types';
+      // Generate JSON config from default config
+      const configJson = {
+        "$schema": "./node_modules/llm-whip/schema.json",
+        patterns: defaultConfig.patterns
+      };
 
-export const config: Config = {
-  patterns: [
-    { name: "todo", pattern: "TODO" },
-    { name: "placeholder", pattern: "placeholder|stub" },
-    { name: "not-implemented", pattern: "not implemented|NotImplementedError" },
-    { name: "important-thing", pattern: "The important thing is" }
-  ]
-};`;
+      const configContent = JSON.stringify(configJson, null, 2);
       
       await writeFile(configPath, configContent);
-      console.log(`✅ Created ${configPath}`);
+      
+      p.outro(color.green(`✅ Created ${configPath}`));
       
     } catch (error) {
-      console.error('❌ Failed to create configuration file:', error);
+      p.cancel(`Failed to create configuration file: ${error}`);
       process.exit(1);
     }
   }
 
-  private static promptUser(question: string): Promise<string> {
-    return new Promise((resolve) => {
-      process.stdout.write(question);
-      process.stdin.once('data', (data) => {
-        resolve(data.toString().trim());
-      });
-    });
-  }
 }

@@ -25,7 +25,7 @@
 	},
 	"files": [
 		"dist/**/*",
-		"config-example.json",
+		"schema.json",
 		"README.md"
 	],
 	"homepage": "https://github.com/bewinxed/llm-whip#readme",
@@ -40,7 +40,7 @@
 	],
 	"license": "MIT",
 	"scripts": {
-		"build": "bun build ./src/llm-whip.ts --outdir ./dist --target node --format esm --banner=\"#!/usr/bin/env node\"",
+		"build": "bun build ./src/llm-whip.ts --outdir ./dist --target node --format esm --banner=\"#!/usr/bin/env node\" && cp ./src/types.ts ./dist/types.ts",
 		"dev": "bun run src/llm-whip.ts",
 		"lint": "bunx biome lint --write src/ test/",
 		"test": "bun test",
@@ -57,7 +57,7 @@
 	"types": "dist/llm-whip.d.ts",
 	"exports": {
 		".": "./dist/llm-whip.js",
-		"./types": "./src/types.ts"
+		"./types": "./dist/types.ts"
 	},
 	"dependencies": {
 		"@clack/prompts": "^0.11.0",

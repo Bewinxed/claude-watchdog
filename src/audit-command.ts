@@ -1,5 +1,5 @@
 import { readFile, readdir, stat } from 'node:fs/promises';
-import { join, relative, extname } from 'node:path';
+import { join, relative, extname, basename } from 'node:path';
 import type { Config, Pattern } from './types';
 import { config as rootConfig } from '../llm-whip.config';
 import * as p from '@clack/prompts';
@@ -24,6 +24,10 @@ export class AuditCommand {
   private static readonly DEFAULT_IGNORE = [
     'node_modules', 'dist', 'build', '.git', 'coverage', '.next',
     '.bun', 'target', '__pycache__', '.pytest_cache'
+  ];
+
+  private static readonly CONFIG_FILES = [
+    'llm-whip.config.json', 'llm-whip.config.js', 'llm-whip.config.ts'
   ];
 
   static async run(directories: string[], configPath?: string, format: 'table' | 'json' | 'csv' = 'table'): Promise<void> {
@@ -64,11 +68,13 @@ export class AuditCommand {
 
     // Summary
     const summary = this.generateSummary(results);
-    console.log('\n📈 Summary:');
-    for (const [severity, count] of Object.entries(summary)) {
+    const summaryLines = Object.entries(summary).map(([severity, count]) => {
       const emoji = severity === 'high' ? '🔴' : severity === 'medium' ? '🟡' : '🟢';
-      console.log(`${emoji} ${severity.toUpperCase()}: ${count} issues`);
-    }
+      const severityColor = severity === 'high' ? color.red : severity === 'medium' ? color.yellow : color.green;
+      return `${emoji} ${severityColor(severity.toUpperCase())}: ${color.bold(count.toString())} ${count === 1 ? 'issue' : 'issues'}`;
+    });
+    
+    p.outro(summaryLines.join(' · '));
   }
 
   private static async loadConfig(configPath?: string): Promise<Config> {
@@ -83,9 +89,39 @@ export class AuditCommand {
 
     try {
       if (configPath.endsWith('.ts') || configPath.endsWith('.js')) {
-        const configModule = await import(join(process.cwd(), configPath));
-        const customConfig = configModule.config || configModule.default;
-        return { ...defaultConfig, ...customConfig };
+        const fullPath = join(process.cwd(), configPath);
+        
+        if (configPath.endsWith('.ts')) {
+          // For TypeScript files, transpile to JavaScript in memory
+          const { readFile } = require('fs/promises');
+          const { transformSync } = await import('esbuild');
+          
+          const tsContent = await readFile(fullPath, 'utf-8');
+          const jsContent = transformSync(tsContent, {
+            loader: 'ts',
+            format: 'esm',
+            target: 'node16'
+          }).code;
+          
+          // Create a temporary JS file path and evaluate
+          const tempPath = fullPath.replace('.ts', '.temp.js');
+          const { writeFile, unlink } = require('fs/promises');
+          await writeFile(tempPath, jsContent);
+          
+          try {
+            const configModule = await import(tempPath);
+            const customConfig = configModule.config || configModule.default;
+            await unlink(tempPath); // Clean up temp file
+            return { ...defaultConfig, ...customConfig };
+          } catch (err) {
+            await unlink(tempPath).catch(() => {}); // Clean up on error
+            throw err;
+          }
+        } else {
+          const configModule = await import(fullPath);
+          const customConfig = configModule.config || configModule.default;
+          return { ...defaultConfig, ...customConfig };
+        }
       } else {
         console.error('Config file must be a TypeScript (.ts) or JavaScript (.js) file');
         return defaultConfig;
@@ -131,6 +167,13 @@ export class AuditCommand {
 
   private static shouldScanFile(filePath: string): boolean {
     const ext = extname(filePath);
+    const fileName = basename(filePath);
+    
+    // Skip config files
+    if (this.CONFIG_FILES.includes(fileName)) {
+      return false;
+    }
+    
     return this.DEFAULT_EXTENSIONS.includes(ext);
   }
 
@@ -170,7 +213,7 @@ export class AuditCommand {
   }
 
   private static outputTable(results: AuditResult[]): void {
-    console.log('📋 Audit Results (Table Format):\n');
+    console.log();
     
     // Group by severity for better readability
     const grouped = this.groupBySeverity(results);
@@ -178,19 +221,26 @@ export class AuditCommand {
     for (const [severity, items] of Object.entries(grouped)) {
       if (items.length === 0) continue;
       
+      const severityColor = severity === 'high' ? color.red : severity === 'medium' ? color.yellow : color.green;
       const emoji = severity === 'high' ? '🔴' : severity === 'medium' ? '🟡' : '🟢';
-      console.log(`${emoji} ${severity.toUpperCase()} SEVERITY (${items.length} issues):`);
-      console.log('─'.repeat(80));
       
-      for (const result of items) {
-        console.log(`📁 ${result.file}:${result.line}`);
-        console.log(`🔍 Pattern: ${result.pattern}`);
-        console.log(`💬 Message: ${result.message}`);
-        console.log(`📝 Code: ${result.fullLine}`);
-        console.log(`🎯 Match: "${result.match}"`);
-        console.log('─'.repeat(40));
-      }
-      console.log();
+      p.note(
+        items.map((result, idx) => {
+          const lines = [
+            `${color.cyan(result.file)}:${color.dim(result.line.toString())}`,
+            `Pattern: ${color.bold(result.pattern)}`,
+            `${color.dim('Code:')} ${result.fullLine}`,
+            `${color.dim('Match:')} ${severityColor(`"${result.match}"`)}`,
+          ];
+          
+          if (idx < items.length - 1) {
+            lines.push(color.dim('─'.repeat(40)));
+          }
+          
+          return lines.join('\n');
+        }).join('\n\n'),
+        `${emoji} ${severity.toUpperCase()} (${items.length} ${items.length === 1 ? 'issue' : 'issues'})`
+      );
     }
   }
 

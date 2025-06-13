@@ -4,6 +4,7 @@ export interface Pattern {
   severity?: 'high' | 'medium' | 'low'; // Default: 'medium'
   reactions?: ReactionType[]; // Default: ['alert']
   message?: string; // Default: Generated from name
+  interruptMessage?: string; // Custom message for keyboard interrupts
 }
 
 export interface FileTrackingPatterns {

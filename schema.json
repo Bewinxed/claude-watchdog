@@ -1,0 +1,131 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "LLM Whip Configuration",
+  "description": "Configuration file for LLM Whip - Anti-cheat monitoring for LLM coding sessions",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "JSON Schema reference"
+    },
+    "patterns": {
+      "type": "array",
+      "description": "List of patterns to detect in code",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Unique name for this pattern"
+          },
+          "pattern": {
+            "type": "string",
+            "description": "JavaScript regular expression to match"
+          },
+          "severity": {
+            "type": "string",
+            "enum": ["low", "medium", "high"],
+            "description": "Severity level of this pattern",
+            "default": "medium"
+          },
+          "reactions": {
+            "type": "array",
+            "description": "Actions to take when pattern is detected",
+            "items": {
+              "type": "string",
+              "enum": ["sound", "alert", "interrupt", "webhook"]
+            },
+            "default": ["alert"]
+          },
+          "message": {
+            "type": "string",
+            "description": "Message to display when pattern is detected"
+          },
+          "interruptMessage": {
+            "type": "string",
+            "description": "Custom message sent to active window during keyboard interrupt"
+          }
+        },
+        "required": ["name", "pattern"],
+        "additionalProperties": false
+      }
+    },
+    "reactions": {
+      "type": "object",
+      "description": "Global reaction configuration",
+      "properties": {
+        "sound": {
+          "oneOf": [
+            {"type": "boolean"},
+            {
+              "type": "object",
+              "properties": {
+                "command": {
+                  "type": "string",
+                  "description": "Custom sound command to execute"
+                }
+              }
+            }
+          ],
+          "description": "Sound reaction configuration"
+        },
+        "interrupt": {
+          "oneOf": [
+            {"type": "boolean"},
+            {
+              "type": "object", 
+              "properties": {
+                "delay": {
+                  "type": "number",
+                  "description": "Delay in milliseconds before interrupt"
+                }
+              }
+            }
+          ],
+          "description": "Keyboard interrupt configuration"
+        },
+        "alert": {
+          "oneOf": [
+            {"type": "boolean"},
+            {
+              "type": "object",
+              "properties": {
+                "format": {
+                  "type": "string",
+                  "enum": ["color", "plain"],
+                  "description": "Alert display format"
+                }
+              }
+            }
+          ],
+          "description": "Alert display configuration"
+        }
+      },
+      "additionalProperties": false
+    },
+    "debounce": {
+      "oneOf": [
+        {"type": "number"},
+        {"type": "boolean", "const": false}
+      ],
+      "description": "Debounce window in milliseconds, or false to disable",
+      "default": 2000
+    },
+    "fileTracking": {
+      "oneOf": [
+        {"type": "boolean"},
+        {
+          "type": "object",
+          "properties": {
+            "filePath": {"type": "string"},
+            "editingFile": {"type": "string"},
+            "lineNumber": {"type": "string"}
+          }
+        }
+      ],
+      "description": "File tracking configuration"
+    }
+  },
+  "required": ["patterns"],
+  "additionalProperties": false
+}

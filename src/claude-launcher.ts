@@ -25,39 +25,18 @@ export class ClaudeLauncher {
       },
       debounce: 3000,
       fileTracking: {
-        filePath: "(?:^|\\\\s)([\\\\/\\\\w\\\\-\\\\.]+\\\\.(js|ts|py|java|cpp|c|go|rs|rb|php|jsx|tsx|vue|svelte))",
-        editingFile: "(?:editing|modifying|updating|writing to|creating)\\\\s+([\\\\/\\\\w\\\\-\\\\.]+\\\\.\\\\w+)",
-        lineNumber: "line\\\\s+(\\\\d+)|:(\\\\d+):|at\\\\s+(\\\\d+)"
+        filePath: "(?:^|\\s)([\\/\\w\\-\\.]+\\.(js|ts|py|java|cpp|c|go|rs|rb|php|jsx|tsx|vue|svelte))",
+        editingFile: "(?:editing|modifying|updating|writing to|creating)\\s+([\\/\\w\\-\\.]+\\.\\w+)",
+        lineNumber: "line\\s+(\\d+)|:(\\d+):|at\\s+(\\d+)"
       }
     };
 
     if (configPath) {
       try {
-        // Try TypeScript config first  
-        if (configPath.endsWith('.ts')) {
-          // For TypeScript files, read and eval (since dynamic import may not work)
-          const configContent = fs.readFileSync(configPath, 'utf8');
-          const configCode = configContent
-            .replace(/import.*from.*['"'];?\n?/g, '') // Remove imports
-            .replace(/export\s+(const\s+)?config/, 'const config') // Remove export
-            .replace(/export\s+default\s+config/, '// export removed');
-          
-          // Create a minimal eval context
-          const tempFunc = new Function(`
-            const process = { platform: "${process.platform}" };
-            ${configCode}
-            return config;
-          `);
-          const customConfig = tempFunc();
-          config = { ...config, ...customConfig };
-        } else if (configPath.endsWith('.js')) {
-          const configModule = await import(join(process.cwd(), configPath));
-          const customConfig = configModule.config || configModule.default;
-          config = { ...config, ...customConfig };
-        } else {
-          console.error('Config file must be a TypeScript (.ts) or JavaScript (.js) file');
-          process.exit(1);
-        }
+        // Try TypeScript config using dynamic import (same as other commands)
+        const configModule = await import(join(process.cwd(), configPath));
+        const customConfig = configModule.config || configModule.default;
+        config = { ...config, ...customConfig };
       } catch (err: unknown) {
         const errorMessage = err instanceof Error ? err.message : 'Unknown error';
         console.error('Failed to load config:', errorMessage);

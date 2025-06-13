@@ -103,7 +103,7 @@ export class KeyboardController {
     }
   }
 
-  static async sendInterruptSequence(message: string, location: string): Promise<boolean> {
+  static async sendInterruptSequence(message: string, location: string, patternType?: string, lineContent?: string): Promise<boolean> {
     try {
       // Send Escape first to ensure we're not in any mode
       await this.sendKeysToActiveWindow('\u001B'); // ESC
@@ -113,8 +113,22 @@ export class KeyboardController {
       await this.sendKeysToActiveWindow('\u0003'); // Ctrl+C  
       await new Promise(resolve => setTimeout(resolve, 200));
       
-      // Type the warning message
-      const fullMessage = `🚨 ANTI-CHEAT DETECTED 🚨\n${message}\nLocation: ${location}\n\nPlease implement the code properly instead of using shortcuts.\n\n`;
+      // Create detailed warning message
+      const timestamp = new Date().toLocaleTimeString();
+      const fullMessage = `
+🚨 ANTI-CHEAT PATTERN DETECTED [${timestamp}]
+
+Pattern: ${patternType || 'Unknown'}
+File: ${location}
+${lineContent ? `Code: ${lineContent.trim()}` : ''}
+
+${message}
+
+Please implement the code properly instead of using shortcuts or placeholders.
+LLM Whip detected this pattern and interrupted to ensure code quality.
+
+`;
+      
       await this.sendKeysToActiveWindow(fullMessage);
       
       return true;
