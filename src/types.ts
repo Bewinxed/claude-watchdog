@@ -34,8 +34,11 @@ export interface FileTrackingPatterns {
 export interface ReactionConfig {
   /** Enable sound alerts or provide custom sound command */
   sound?: boolean | { command?: string }; // Default: true
-  /** Enable keyboard interrupts with optional delay */
-  interrupt?: boolean | { delay?: number }; // Default: false
+  /** Enable keyboard interrupts with optional delay and sequence */
+  interrupt?: boolean | { 
+    delay?: number; // Default: 500
+    sequence?: string[]; // Default: ["\\u001b", "{message}", "\\n"] (ESC + message + Enter)
+  }; // Default: false
   /** Enable console alerts with formatting options */
   alert?: boolean | { format?: "color" | "plain" }; // Default: true
   /** Webhook URL for external notifications */

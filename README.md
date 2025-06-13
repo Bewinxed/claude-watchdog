@@ -52,6 +52,9 @@ llm-whip ./src ./lib
 # Monitor with keyboard interrupts (sends text to active window)
 llm-whip ./src --interrupt
 
+# Monitor with sound alerts
+llm-whip ./src --sound
+
 # Create configuration file
 llm-whip init
 
@@ -76,6 +79,7 @@ llm-whip audit
 | `--format=<type>`   | Audit output format (table/json/csv)                     |
 | `--grep=<patterns>` | Filter files by content patterns                         |
 | `--interrupt`       | Enable keyboard interrupts (sends text to active window) |
+| `--sound`           | Enable sound alerts                                       |
 
 ## Configuration
 
@@ -92,7 +96,7 @@ export const config: Config = {
 			severity: 'high',
 			reactions: ['sound', 'alert', 'interrupt'],
 			message: 'TODO comment detected',
-			interruptMessage:
+			messageText:
 				'TODO comments should be completed before submitting code. Please implement the actual functionality instead of leaving placeholder comments.',
 		},
 		{
@@ -100,12 +104,12 @@ export const config: Config = {
 			pattern: 'The important thing is',
 			severity: 'medium',
 			reactions: ['alert'],
-			interruptMessage:
+			messageText:
 				"Detected 'The important thing is...' - this often indicates avoiding detailed implementation. Please provide specific, actionable details.",
 		},
 	],
 	reactions: {
-		sound: { command: 'afplay /System/Library/Sounds/Basso.aiff' },
+		sound: { command: 'afplay /System/Library/Sounds/Glass.aiff' },
 		interrupt: { delay: 500 },
 		alert: { format: 'color' },
 	},
@@ -142,7 +146,7 @@ Patterns use **JavaScript regex syntax** and are case-insensitive by default:
 
 ## Keyboard Interrupts
 
-The `--interrupt` flag enables keyboard interrupts that send detailed messages to the active window when patterns are detected:
+The `--interrupt` flag enables keyboard interrupts that send detailed warnings to the active window when patterns are detected:
 
 ```bash
 # Enable keyboard interrupts
@@ -151,23 +155,37 @@ llm-whip ./src --interrupt
 
 When a pattern is detected, LLM Whip will:
 
-1. Send Escape and Ctrl+C to the active window
-2. Type a detailed message including:
+1. Type a warning message to the active window
+2. Press Enter to send the message
+3. The message includes:
     - Pattern type and custom message
     - File path and line number
-    - The detected code line
     - Timestamp
 
-Each pattern can have a custom `interruptMessage` that gets sent to Claude:
+Each pattern can have a custom `messageText` that gets sent:
 
 ```typescript
 {
   name: "todo",
   pattern: "TODO",
   reactions: ["interrupt"],
-  interruptMessage: "TODO comments should be completed before submitting code. Please implement the actual functionality instead of leaving placeholder comments."
+  messageText: "TODO comments should be completed before submitting code. Please implement the actual functionality instead of leaving placeholder comments."
 }
 ```
+
+## Sound Alerts
+
+The `--sound` flag enables cross-platform sound alerts:
+
+```bash
+# Enable sound alerts
+llm-whip ./src --sound
+```
+
+Default sounds by platform:
+- **macOS**: Glass.aiff (fallback: Ping.aiff)
+- **Windows**: Windows Critical Stop.wav (fallback: console beep)
+- **Linux**: alarm-clock-elapsed.oga (fallback: bell.oga)
 
 ## Monitoring LLM Conversations
 

@@ -94,6 +94,7 @@ async function main() {
       ? grepFlag.split("=")[1]?.split(",") || []
       : [];
     const keyboardEnabled = watchArgs.includes("--interrupt");
+    const soundEnabled = watchArgs.includes("--sound");
     const directories = watchArgs.filter((arg) => !arg.startsWith("--"));
 
     if (directories.length === 0) {
@@ -137,8 +138,16 @@ async function main() {
       if (hasPermission) {
         config.reactions = {
           ...config.reactions,
-          interrupt: { delay: 500 },
+          interrupt: { delay: 500, sequence: ["\\u001b", "{message}", "\\n"] },
         };
+        
+        // Add interrupt to all patterns that don't already have it
+        config.patterns = config.patterns.map(pattern => ({
+          ...pattern,
+          reactions: pattern.reactions?.includes("interrupt") 
+            ? pattern.reactions 
+            : [...(pattern.reactions || ["alert"]), "interrupt"]
+        }));
       } else {
         console.error(
           "❌ Keyboard interrupts require accessibility permissions. Disabling interrupt feature.",
@@ -148,6 +157,14 @@ async function main() {
         );
         // Continue without interrupts
       }
+    }
+
+    // Add sound capability if requested
+    if (soundEnabled) {
+      config.reactions = {
+        ...config.reactions,
+        sound: true
+      };
     }
 
     const watcher = new FileWatcher({ config, directories, grepPatterns });
@@ -182,6 +199,7 @@ async function main() {
       ? grepFlag.split("=")[1]?.split(",") || []
       : [];
     const keyboardEnabled = args.includes("--interrupt");
+    const soundEnabled = args.includes("--sound");
 
     let config: Config = rootConfig;
 
@@ -208,8 +226,16 @@ async function main() {
       if (hasPermission) {
         config.reactions = {
           ...config.reactions,
-          interrupt: { delay: 500 },
+          interrupt: { delay: 500, sequence: ["\\u001b", "{message}", "\\n"] },
         };
+        
+        // Add interrupt to all patterns that don't already have it
+        config.patterns = config.patterns.map(pattern => ({
+          ...pattern,
+          reactions: pattern.reactions?.includes("interrupt") 
+            ? pattern.reactions 
+            : [...(pattern.reactions || ["alert"]), "interrupt"]
+        }));
       } else {
         console.error(
           "❌ Keyboard interrupts require accessibility permissions. Disabling interrupt feature.",
@@ -219,6 +245,14 @@ async function main() {
         );
         // Continue without interrupts
       }
+    }
+
+    // Add sound capability if requested
+    if (soundEnabled) {
+      config.reactions = {
+        ...config.reactions,
+        sound: true
+      };
     }
 
     const watcher = new FileWatcher({ config, directories, grepPatterns });

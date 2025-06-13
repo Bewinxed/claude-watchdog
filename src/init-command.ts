@@ -31,7 +31,7 @@ export class InitCommand {
     try {
       // Generate JSON config from default config
       const configJson = {
-        $schema: "./node_modules/llm-whip/schema.json",
+        $schema: "https://raw.githubusercontent.com/bewinxed/llm-whip/main/schema.json",
         patterns: defaultConfig.patterns,
       };
 

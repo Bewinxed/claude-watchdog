@@ -37,13 +37,10 @@ export class KeyboardController {
   private static async sendKeysOSX(keys: string): Promise<boolean> {
     if (!KeyboardController.isOSXBuildAvailable) return false;
 
-    // Focus LLM window first
-    await KeyboardController.focusLLMWindow();
-
     // Escape the text for AppleScript (escape quotes and backslashes)
     const escapedKeys = keys.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
 
-    // Send the keys
+    // Send the keys to the active window
     const script = `
       tell application "System Events"
         keystroke "${escapedKeys}"
@@ -83,58 +80,91 @@ export class KeyboardController {
     return true;
   }
 
-  static async focusLLMWindow(): Promise<boolean> {
+
+  static async sendMessageSequence(
+    message: string,
+    location: string,
+    patternType?: string,
+    interruptConfig?: boolean | { delay?: number; sequence?: string[] },
+  ): Promise<boolean> {
     try {
       if (process.platform === "darwin") {
-        // Try to focus LLM tools or Terminal running LLM
-        const focusScript = `
-          tell application "System Events"
-            set llmApps to (every process whose name contains "claude" or name contains "Claude" or name contains "Terminal" or name contains "iTerm" or name contains "Code" or name contains "cursor")
-            if length of llmApps > 0 then
-              set frontmost of item 1 of llmApps to true
-              return true
-            end if
-          end tell
-        `;
-
-        await execAsync(`osascript -e '${focusScript}'`);
+        const timestamp = new Date().toLocaleTimeString();
+        const cleanMessage = message.replace(/[\n\r"'\\]/g, ' ').trim();
+        
+        // Create a concise warning message to type
+        const typedMessage = `🚨 Anti-cheat detected: ${patternType} in ${location} - ${cleanMessage}`;
+        
+        // Get configuration or use defaults
+        const config = typeof interruptConfig === 'object' ? interruptConfig : {};
+        const delay = config.delay || 100;
+        const sequence = config.sequence || ['\\u001b', '{message}', '\\n']; // ESC + message + Enter
+        
+        // Send the keyboard sequence
+        for (const step of sequence) {
+          if (step === '{message}') {
+            await KeyboardController.sendKeysToActiveWindow(typedMessage);
+          } else if (step === '\\u001b') {
+            // Send ESC key using key code
+            await KeyboardController.sendEscapeKey();
+          } else if (step === '\\n') {
+            // Send Enter key using key code
+            await KeyboardController.sendEnterKey();
+          } else {
+            await KeyboardController.sendKeysToActiveWindow(step);
+          }
+          await new Promise((resolve) => setTimeout(resolve, delay));
+        }
+        
+        // Also show notification
+        const notificationTitle = "🚨 LLM Whip - Anti-Cheat Detected";
+        const notificationMessage = `[${timestamp}] ${patternType}: ${cleanMessage} (${location})`;
+        await KeyboardController.sendNotification(notificationTitle, notificationMessage);
+        
         return true;
       }
-      // Add Linux/Windows focus logic if needed
-      return true;
+      
+      return false;
     } catch (error) {
-      console.error("Failed to focus LLM window:", error);
+      console.error("Failed to send message sequence:", error);
       return false;
     }
   }
 
-  static async sendInterruptSequence(
-    message: string,
-    location: string,
-    patternType?: string,
-    lineContent?: string,
-  ): Promise<boolean> {
+  static async sendEscapeKey(): Promise<boolean> {
     try {
-      // Send Escape first to ensure we're not in any mode
-      await KeyboardController.sendKeysToActiveWindow("\\e"); // ESC
-      await new Promise((resolve) => setTimeout(resolve, 100));
-
-      // Send Ctrl+C to interrupt
-      await KeyboardController.sendKeysToActiveWindow("\\u0003"); // Ctrl+C
-      await new Promise((resolve) => setTimeout(resolve, 200));
-
-      // Create concise warning message (avoiding newlines that break osascript)
-      const timestamp = new Date().toLocaleTimeString();
-      const cleanMessage = message.replace(/[\n\r"'\\]/g, ' ').trim();
-      const cleanLineContent = lineContent ? lineContent.replace(/[\n\r"'\\]/g, ' ').trim() : '';
-      
-      const fullMessage = `🚨 ANTI-CHEAT [${timestamp}] Pattern: ${patternType || "Unknown"} | File: ${location} | Code: ${cleanLineContent} | ${cleanMessage} | Please implement proper code instead of shortcuts. LLM Whip detected anti-pattern.`;
-
-      await KeyboardController.sendKeysToActiveWindow(fullMessage);
-
-      return true;
+      if (process.platform === "darwin") {
+        const script = `
+          tell application "System Events"
+            key code 53
+          end tell
+        `;
+        await execAsync(`osascript -e '${script}'`);
+        return true;
+      }
+      // Add Linux/Windows support if needed
+      return false;
     } catch (error) {
-      console.error("Failed to send interrupt sequence:", error);
+      console.error("Failed to send ESC key:", error);
+      return false;
+    }
+  }
+
+  static async sendEnterKey(): Promise<boolean> {
+    try {
+      if (process.platform === "darwin") {
+        const script = `
+          tell application "System Events"
+            key code 36
+          end tell
+        `;
+        await execAsync(`osascript -e '${script}'`);
+        return true;
+      }
+      // Add Linux/Windows support if needed
+      return false;
+    } catch (error) {
+      console.error("Failed to send Enter key:", error);
       return false;
     }
   }

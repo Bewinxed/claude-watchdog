@@ -20,7 +20,7 @@ export class BaselineTracker {
       timestamp: Date.now(),
       entries,
     };
-    console.log(`📸 Created baseline with ${entries.length} existing patterns`);
+    // Baseline created silently
   }
 
   static async loadBaseline(): Promise<Baseline | null> {
@@ -90,14 +90,12 @@ export class BaselineTracker {
     if (uniqueNewEntries.length > 0) {
       BaselineTracker.baseline.entries.push(...uniqueNewEntries);
       BaselineTracker.baseline.timestamp = Date.now();
-      console.log(
-        `📸 Updated baseline with ${uniqueNewEntries.length} new patterns`,
-      );
+      // Baseline updated silently
     }
   }
 
   static async clearBaseline(): Promise<void> {
     BaselineTracker.baseline = null;
-    console.log("🗑️ Cleared baseline");
+    // Baseline cleared silently
   }
 }

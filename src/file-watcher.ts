@@ -87,42 +87,17 @@ export class FileWatcher extends EventEmitter {
 
   async start() {
     console.log();
-    p.intro(color.bgYellow(color.black(" LLM Whip Watch Mode ")));
-
-    const info = [
-      `Watching ${color.cyan(this.directories.length.toString())} directories`,
-      `Monitoring ${color.cyan(this.config.patterns.length.toString())} patterns`,
-      `Extensions: ${color.dim(Array.from(this.fileExtensions).join(", "))}`,
-    ];
-
-    if (this.respectGitignore) {
-      info.push(`Respecting ${color.dim(".gitignore")} patterns`);
-    }
-
-    if (this.grepPatterns.length > 0) {
-      info.push(
-        `Grep filter: ${color.dim(this.grepPatterns.map((p) => p.source).join(", "))}`,
-      );
-    }
-
-    p.note(info.join("\n"), "🔍 Configuration");
-
-    // Load baseline for new vs existing pattern detection
-    const spinner = p.spinner();
-    spinner.start("Loading baseline");
-
+    console.log(color.bgYellow(color.black(" LLM Whip ")));
+    
+    // Load baseline silently
     this.baseline = await BaselineTracker.loadBaseline();
-    if (this.baseline) {
-      spinner.stop(
-        `Loaded baseline with ${color.yellow(this.baseline.entries.length.toString())} existing patterns`,
-      );
-      p.note("Will only alert on NEW patterns", "📸 Baseline Mode");
-    } else {
-      spinner.stop("No baseline found");
-      p.note("Will alert on ALL patterns", "📸 No Baseline");
-    }
-
-    p.outro(color.dim("Watching for changes... Press Ctrl+C to stop"));
+    
+    const baselineInfo = this.baseline 
+      ? `${this.baseline.entries.length} existing patterns in baseline`
+      : "No baseline - alerting on all patterns";
+    
+    console.log(color.dim(`Watching ${this.directories.length} dirs, ${this.config.patterns.length} patterns | ${baselineInfo}`));
+    console.log(color.dim("Press Ctrl+C to stop"));
 
     // Initialize keyboard controller
     await KeyboardController.init();
@@ -203,6 +178,12 @@ export class FileWatcher extends EventEmitter {
 
   private async processFile(filePath: string) {
     const content = await readFile(filePath, "utf-8");
+
+    // Skip files that contain our own anti-cheat messages to prevent loops
+    if (content.includes("Anti-cheat detected:") || 
+        (content.includes("ANTI-CHEAT") && content.includes("LLM Whip detected"))) {
+      return; // Skip files containing our own output
+    }
 
     // If grep patterns are specified, only process files that match
     if (this.grepPatterns.length > 0) {
@@ -368,7 +349,7 @@ export class FileWatcher extends EventEmitter {
               (typeof this.config.reactions?.interrupt === "object" &&
                 this.config.reactions.interrupt !== null);
             if (interruptEnabled) {
-              await this.sendKeyboardInterrupt(match);
+              await this.sendKeyboardMessage(match);
             }
             break;
           }
@@ -448,33 +429,33 @@ export class FileWatcher extends EventEmitter {
     }
   }
 
-  private async sendKeyboardInterrupt(
+  private async sendKeyboardMessage(
     match: MatchInfo & { patternConfig?: Pattern },
   ) {
     const location = `${match.file}:${match.line}`;
 
     // Show local alert
     process.stderr.write(
-      `\n\x1b[41m\x1b[97m${"🚨".repeat(10)} INTERRUPTING LLM ${"🚨".repeat(10)}\x1b[0m\n\x1b[91m\x1b[1m⚠️  ${match.message}\x1b[0m\n\x1b[93m📍 Location: ${location}\x1b[0m\n\x1b[90mSending keyboard interrupt to active window...\x1b[0m\n\x1b[41m\x1b[97m${"🚨".repeat(41)}\x1b[0m\n\n`,
+      `\n\x1b[41m\x1b[97m${"🚨".repeat(10)} SENDING MESSAGE ${"🚨".repeat(10)}\x1b[0m\n\x1b[91m\x1b[1m⚠️  ${match.message}\x1b[0m\n\x1b[93m📍 Location: ${location}\x1b[0m\n\x1b[90mSending warning message to active window...\x1b[0m\n\x1b[41m\x1b[97m${"🚨".repeat(38)}\x1b[0m\n\n`,
     );
 
-    // Use custom interrupt message if available, otherwise fall back to generic message
-    const interruptMessage =
+    // Use custom message if available, otherwise fall back to generic message
+    const warningMessage =
       match.patternConfig?.interruptMessage ||
       match.message ||
       `${match.pattern} detected - please review and fix`;
 
-    // Send keyboard interrupt to LLM with detailed information
-    const success = await KeyboardController.sendInterruptSequence(
-      interruptMessage,
+    // Send warning message to LLM
+    const success = await KeyboardController.sendMessageSequence(
+      warningMessage,
       location,
       match.pattern,
-      match.fullLine,
+      this.config.reactions?.interrupt,
     );
 
     if (!success) {
       process.stderr.write(
-        "\x1b[93m⚠️  Could not send keyboard interrupt. Make sure LLM window is active.\x1b[0m\n\n",
+        "\x1b[93m⚠️  Could not send message. Make sure LLM window is active.\x1b[0m\n\n",
       );
 
       // Fallback to system notification

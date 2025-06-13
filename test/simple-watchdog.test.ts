@@ -23,19 +23,11 @@ export const config: Config = {
     }
   ],
   reactions: {
-    sound: { enabled: false, command: "" },
-    interrupt: { enabled: false, delay: 0 },
-    alert: { enabled: true, format: "plain" }
+    sound: false,
+    interrupt: false,
+    alert: { format: "plain" }
   },
-  debounce: { enabled: false, window: 0 },
-  fileTracking: {
-    enabled: false,
-    patterns: {
-      filePath: "",
-      editingFile: "",
-      lineNumber: ""
-    }
-  }
+  debounce: false
 };
 `;
 
