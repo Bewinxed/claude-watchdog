@@ -147,15 +147,15 @@ export class AuditCommand {
           const regex = new RegExp(pattern.pattern, 'gmi');
           let match: RegExpExecArray | null;
           
-          while ((match = regex.exec(line)) !== null) {
+          while ((match = regex.exec(line || '')) !== null) {
             results.push({
               file: relativePath,
               line: lineNum + 1,
               pattern: pattern.name,
-              severity: pattern.severity,
+              severity: pattern.severity || 'medium',
               match: match[0],
-              message: pattern.message,
-              fullLine: line.trim()
+              message: pattern.message || `${pattern.name} detected`,
+              fullLine: line?.trim() || ''
             });
           }
         }
@@ -229,7 +229,7 @@ export class AuditCommand {
       if (!groups[result.severity]) {
         groups[result.severity] = [];
       }
-      groups[result.severity].push(result);
+      groups[result.severity]!.push(result);
       return groups;
     }, {} as Record<string, AuditResult[]>);
   }

@@ -53,25 +53,25 @@ export class StdoutMonitor extends EventEmitter {
     
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i];
-      if (!line.trim()) continue;
+      if (!line?.trim()) continue;
 
       for (const patternConfig of this.config.patterns) {
         const regex = new RegExp(patternConfig.pattern, 'gmi');
-        const matches = line.match(regex);
+        const matches = line?.match(regex);
         
         if (matches) {
           const matchInfo: MatchInfo = {
             pattern: patternConfig.name,
-            severity: patternConfig.severity,
+            severity: patternConfig.severity || 'medium',
             match: matches[0],
-            index: line.indexOf(matches[0]),
-            reactions: patternConfig.reactions,
-            message: patternConfig.message,
+            index: line?.indexOf(matches[0]) || 0,
+            reactions: patternConfig.reactions || ['alert'],
+            message: patternConfig.message || `${patternConfig.name} detected`,
             file: 'claude-output.log',
             line: (this.lastPosition + i + 1).toString(),
-            context: line.trim(),
+            context: line?.trim() || '',
             timestamp: Date.now(),
-            fullLine: line
+            fullLine: line || ''
           };
 
           this.emit('match', matchInfo);

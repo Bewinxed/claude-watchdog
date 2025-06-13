@@ -4,8 +4,7 @@ import { spawn, type ChildProcess, exec } from 'child_process';
 import { EventEmitter } from 'events';
 import * as fs from 'fs';
 import * as path from 'path';
-import * as readline from 'readline';
-import { type Config, type FileContext, type MatchInfo, ReactionType, Pattern } from './types';
+import type { Config, FileContext, MatchInfo } from './types';
 import { FileWatcher } from './file-watcher';
 import { ClaudeLauncher } from './claude-launcher';
 import { InitCommand } from './init-command';
@@ -25,29 +24,41 @@ class ClaudeWatchdog extends EventEmitter {
   }
 
   private loadConfig(customConfig: Partial<Config>): Config {
-    const defaultConfig = createMinimalConfig();
+    const defaultConfig: Config = {
+      patterns: [
+        { name: "todo", pattern: "TODO" },
+        { name: "placeholder", pattern: "placeholder|stub" },
+        { name: "not-implemented", pattern: "not implemented|NotImplementedError" }
+      ]
+    };
     return { ...defaultConfig, ...customConfig };
   }
 
   private detectFileContext(line: string): void {
-    if (!this.config.fileTracking.enabled) return;
+    if (this.config.fileTracking === false) return;
+
+    const patterns = typeof this.config.fileTracking === 'object' ? this.config.fileTracking : {
+      filePath: "(?:^|\\s)([\\/\\w\\-\\.]+\\.(js|ts|py|java|cpp|c|go|rs|rb|php|jsx|tsx|vue|svelte))",
+      editingFile: "(?:editing|modifying|updating|writing to|creating)\\s+([\\/\\w\\-\\.]+\\.\\w+)",
+      lineNumber: "line\\s+(\\d+)|:(\\d+):|at\\s+(\\d+)"
+    };
 
     // Check for file path mentions
-    const fileMatch = line.match(new RegExp(this.config.fileTracking.patterns.filePath, 'i'));
+    const fileMatch = line.match(new RegExp(patterns.filePath || '', 'i'));
     if (fileMatch) {
-      this.fileContext.currentFile = fileMatch[1];
+      this.fileContext.currentFile = fileMatch[1] || null;
     }
 
     // Check for explicit editing mentions
-    const editMatch = line.match(new RegExp(this.config.fileTracking.patterns.editingFile, 'i'));
+    const editMatch = line.match(new RegExp(patterns.editingFile || '', 'i'));
     if (editMatch) {
-      this.fileContext.currentFile = editMatch[1];
+      this.fileContext.currentFile = editMatch[1] || null;
     }
 
     // Check for line numbers
-    const lineMatch = line.match(new RegExp(this.config.fileTracking.patterns.lineNumber, 'i'));
+    const lineMatch = line.match(new RegExp(patterns.lineNumber || '', 'i'));
     if (lineMatch) {
-      this.fileContext.currentLine = lineMatch[1] || lineMatch[2] || lineMatch[3];
+      this.fileContext.currentLine = lineMatch[1] || lineMatch[2] || lineMatch[3] || null;
     }
   }
 
@@ -61,11 +72,11 @@ class ClaudeWatchdog extends EventEmitter {
       while ((match = regex.exec(text)) !== null) {
         const matchInfo: MatchInfo = {
           pattern: patternConfig.name,
-          severity: patternConfig.severity,
+          severity: patternConfig.severity || 'medium',
           match: match[0],
           index: match.index,
-          reactions: patternConfig.reactions,
-          message: patternConfig.message,
+          reactions: patternConfig.reactions || ['alert'],
+          message: patternConfig.message || `${patternConfig.name} detected`,
           file: this.fileContext.currentFile,
           line: this.fileContext.currentLine,
           context: this.getContext(text, match.index)
@@ -75,9 +86,8 @@ class ClaudeWatchdog extends EventEmitter {
         const matchKey = `${patternConfig.name}-${matchInfo.file || 'unknown'}`;
         const lastMatch = this.recentMatches.get(matchKey);
         
-        if (!this.config.debounce.enabled || 
-            !lastMatch || 
-            Date.now() - lastMatch > this.config.debounce.window) {
+        const debounceWindow = typeof this.config.debounce === 'number' ? this.config.debounce : (this.config.debounce === false ? 0 : 2000);
+        if (debounceWindow === 0 || !lastMatch || Date.now() - lastMatch > debounceWindow) {
           matches.push(matchInfo);
           this.recentMatches.set(matchKey, Date.now());
         }
@@ -100,19 +110,21 @@ class ClaudeWatchdog extends EventEmitter {
       for (const reaction of match.reactions) {
         switch (reaction) {
           case 'sound':
-            if (this.config.reactions.sound.enabled) {
+            if (this.config.reactions?.sound !== false) {
               this.playSound();
             }
             break;
             
           case 'interrupt':
-            if (this.config.reactions.interrupt.enabled) {
+            const interruptEnabled = this.config.reactions?.interrupt === true || 
+              (typeof this.config.reactions?.interrupt === 'object' && this.config.reactions.interrupt !== null);
+            if (interruptEnabled) {
               await this.interruptClaude(match);
             }
             break;
             
           case 'alert':
-            if (this.config.reactions.alert.enabled) {
+            if (this.config.reactions?.alert !== false) {
               this.showAlert(match);
             }
             break;
@@ -122,13 +134,22 @@ class ClaudeWatchdog extends EventEmitter {
   }
 
   private playSound(): void {
-    exec(this.config.reactions.sound.command, (err) => {
+    const soundConfig = this.config.reactions?.sound;
+    const command = typeof soundConfig === 'object' && soundConfig?.command 
+      ? soundConfig.command 
+      : process.platform === 'darwin' ? 'afplay /System/Library/Sounds/Basso.aiff' :
+        process.platform === 'win32' ? 'powershell -c (New-Object Media.SoundPlayer "C:\\Windows\\Media\\chord.wav").PlaySync()' :
+        'paplay /usr/share/sounds/freedesktop/stereo/bell.oga';
+    
+    exec(command, (err) => {
       if (err) console.error('Failed to play sound:', err.message);
     });
   }
 
   private async interruptClaude(match: MatchInfo): Promise<void> {
-    await new Promise(resolve => setTimeout(resolve, this.config.reactions.interrupt.delay));
+    const interruptConfig = this.config.reactions?.interrupt;
+    const delay = typeof interruptConfig === 'object' && interruptConfig?.delay ? interruptConfig.delay : 100;
+    await new Promise(resolve => setTimeout(resolve, delay));
     
     const location = match.file ? `in ${match.file}${match.line ? `:${match.line}` : ''}` : '';
     
@@ -149,7 +170,10 @@ class ClaudeWatchdog extends EventEmitter {
     const timestamp = new Date().toLocaleTimeString();
     
     // Clear current line and show alert above Claude's output
-    if (this.config.reactions.alert.format === 'color') {
+    const alertConfig = this.config.reactions?.alert;
+    const format = typeof alertConfig === 'object' && alertConfig?.format ? alertConfig.format : 'color';
+    
+    if (format === 'color') {
       process.stderr.write(
         `\r\x1b[K\x1b[41m\x1b[97m ⚠️  ANTI-CHEAT DETECTED \x1b[0m\n` +
         `\x1b[90m[${timestamp}]\x1b[0m \x1b[31m${match.pattern}\x1b[0m: ${match.message} ${location}\n` +
@@ -163,7 +187,7 @@ class ClaudeWatchdog extends EventEmitter {
     }
   }
 
-  private processOutput(data: Buffer): void {
+  private _processOutput(data: Buffer): void {
     const text = data.toString();
     this.outputBuffer += text;
     
@@ -203,7 +227,7 @@ class ClaudeWatchdog extends EventEmitter {
     // Note: stdout/stderr monitoring is set up above based on mode
 
     // Handle process exit
-    this.claudeProcess.on('exit', (code, signal) => {
+    this.claudeProcess.on('exit', (code) => {
       console.log('\n\x1b[90m[WATCHDOG]\x1b[0m Claude session ended');
       process.exit(code || 0);
     });
@@ -219,7 +243,7 @@ class ClaudeWatchdog extends EventEmitter {
     const handleExit = (signal: string) => {
       console.log(`\n\x1b[90m[WATCHDOG]\x1b[0m Received ${signal}, shutting down...`);
       if (this.claudeProcess && !this.claudeProcess.killed) {
-        this.claudeProcess.kill(signal === 'SIGINT' ? 'SIGTERM' : signal);
+        this.claudeProcess.kill('SIGTERM');
         // Give Claude time to clean up
         setTimeout(() => {
           if (!this.claudeProcess!.killed) {
@@ -281,7 +305,7 @@ async function loadTypescriptConfig(configPath: string): Promise<Config | null> 
 }
 
 // CLI entry point
-if (import.meta.main) {
+if (import.meta.url === `file://${process.argv[1]}`) {
   const args = process.argv.slice(2);
   
   async function main() {
@@ -313,7 +337,7 @@ if (import.meta.main) {
       const watchArgs = args.slice(1);
       const configPath = watchArgs.find(arg => arg.startsWith('--config='))?.split('=')[1] || await findConfigFile();
       const grepFlag = watchArgs.find(arg => arg.startsWith('--grep='));
-      const grepPatterns = grepFlag ? grepFlag.split('=')[1].split(',') : [];
+      const grepPatterns = grepFlag ? grepFlag.split('=')[1]?.split(',') || [] : [];
       const directories = watchArgs.filter(arg => !arg.startsWith('--'));
       
       if (directories.length === 0) {
@@ -322,7 +346,13 @@ if (import.meta.main) {
         process.exit(1);
       }
       
-      let config: Config = createMinimalConfig();
+      let config: Config = {
+        patterns: [
+          { name: "todo", pattern: "TODO" },
+          { name: "placeholder", pattern: "placeholder|stub" },
+          { name: "not-implemented", pattern: "not implemented|NotImplementedError" }
+        ]
+      };
       
       if (configPath) {
         try {

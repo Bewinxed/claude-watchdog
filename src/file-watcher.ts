@@ -183,7 +183,7 @@ export class FileWatcher extends EventEmitter {
       const line = lines[lineNum];
       fileContext.currentLine = (lineNum + 1).toString();
       
-      const matches = this.checkPatterns(line, filePath, lineNum + 1);
+      const matches = this.checkPatterns(line || '', filePath, lineNum + 1);
       
       
       if (matches.length > 0) {
