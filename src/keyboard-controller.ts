@@ -40,10 +40,13 @@ export class KeyboardController {
     // Focus LLM window first
     await KeyboardController.focusLLMWindow();
 
+    // Escape the text for AppleScript (escape quotes and backslashes)
+    const escapedKeys = keys.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+
     // Send the keys
     const script = `
       tell application "System Events"
-        keystroke "${keys}"
+        keystroke "${escapedKeys}"
       end tell
     `;
 
@@ -113,28 +116,19 @@ export class KeyboardController {
   ): Promise<boolean> {
     try {
       // Send Escape first to ensure we're not in any mode
-      await KeyboardController.sendKeysToActiveWindow("\u001B"); // ESC
+      await KeyboardController.sendKeysToActiveWindow("\\e"); // ESC
       await new Promise((resolve) => setTimeout(resolve, 100));
 
       // Send Ctrl+C to interrupt
-      await KeyboardController.sendKeysToActiveWindow("\u0003"); // Ctrl+C
+      await KeyboardController.sendKeysToActiveWindow("\\u0003"); // Ctrl+C
       await new Promise((resolve) => setTimeout(resolve, 200));
 
-      // Create detailed warning message
+      // Create concise warning message (avoiding newlines that break osascript)
       const timestamp = new Date().toLocaleTimeString();
-      const fullMessage = `
-🚨 ANTI-CHEAT PATTERN DETECTED [${timestamp}]
-
-Pattern: ${patternType || "Unknown"}
-File: ${location}
-${lineContent ? `Code: ${lineContent.trim()}` : ""}
-
-${message}
-
-Please implement the code properly instead of using shortcuts or placeholders.
-LLM Whip detected this pattern and interrupted to ensure code quality.
-
-`;
+      const cleanMessage = message.replace(/[\n\r"'\\]/g, ' ').trim();
+      const cleanLineContent = lineContent ? lineContent.replace(/[\n\r"'\\]/g, ' ').trim() : '';
+      
+      const fullMessage = `🚨 ANTI-CHEAT [${timestamp}] Pattern: ${patternType || "Unknown"} | File: ${location} | Code: ${cleanLineContent} | ${cleanMessage} | Please implement proper code instead of shortcuts. LLM Whip detected anti-pattern.`;
 
       await KeyboardController.sendKeysToActiveWindow(fullMessage);
 

@@ -331,21 +331,26 @@ export class FileWatcher extends EventEmitter {
   }
 
   private async executeReactions(matches: MatchInfo[]) {
+    // Play sound once for any matches (avoid spam)
+    const shouldPlaySound = matches.some(match => match.reactions.includes("sound")) &&
+      this.config.reactions?.sound !== false;
+    
+    if (shouldPlaySound) {
+      this.playSound();
+    }
+
     for (const match of matches) {
       this.emit("match", match);
 
       for (const reaction of match.reactions) {
         switch (reaction) {
           case "sound": {
-            const soundEnabled = this.config.reactions?.sound !== false;
-            if (soundEnabled) {
-              this.playSound();
-              // Also send system notification
-              await KeyboardController.sendNotification(
-                "LLM Whip",
-                `Anti-cheat detected in ${match.file}:${match.line}`,
-              );
-            }
+            // Sound already played above to avoid spam
+            // Send system notification
+            await KeyboardController.sendNotification(
+              "LLM Whip",
+              `Anti-cheat detected in ${match.file}:${match.line}`,
+            );
             break;
           }
 
@@ -375,17 +380,30 @@ export class FileWatcher extends EventEmitter {
   private playSound() {
     const { exec } = require("node:child_process");
     const soundConfig = this.config.reactions?.sound;
+    
+    // Use better alarm sounds by default
     const command =
       typeof soundConfig === "object" && soundConfig?.command
         ? soundConfig.command
         : process.platform === "darwin"
-          ? "afplay /System/Library/Sounds/Basso.aiff"
+          ? "afplay /System/Library/Sounds/Glass.aiff" // Distinctive alert sound
           : process.platform === "win32"
-            ? 'powershell -c (New-Object Media.SoundPlayer "C:\\Windows\\Media\\chord.wav").PlaySync()'
-            : "paplay /usr/share/sounds/freedesktop/stereo/bell.oga";
+            ? 'powershell -c (New-Object Media.SoundPlayer "C:\\Windows\\Media\\Windows Critical Stop.wav").PlaySync()'
+            : "paplay /usr/share/sounds/freedesktop/stereo/alarm-clock-elapsed.oga";
 
     exec(command, (err: Error | null) => {
-      if (err) console.error("Failed to play sound:", err.message);
+      if (err) {
+        // Fallback to system beep if sound file not found
+        const fallback = process.platform === "darwin" 
+          ? "afplay /System/Library/Sounds/Ping.aiff"
+          : process.platform === "win32"
+            ? 'powershell -c "[console]::beep(800,300)"'
+            : "paplay /usr/share/sounds/freedesktop/stereo/bell.oga";
+        
+        exec(fallback, (fallbackErr: Error | null) => {
+          if (fallbackErr) console.error("Failed to play sound:", fallbackErr.message);
+        });
+      }
     });
   }
 
