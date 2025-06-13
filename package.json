@@ -1,6 +1,6 @@
 {
 	"name": "llm-whip",
-	"version": "1.0.7",
+	"version": "1.0.8",
 	"author": "bewinxed",
 	"repository": {
 		"type": "git",
@@ -13,7 +13,7 @@
 		"@types/node": "^20.0.0"
 	},
 	"bin": {
-		"llm-whip": "./dist/llm-whip.js"
+		"llm-whip": "dist/llm-whip.js"
 	},
 	"bugs": {
 		"url": "https://github.com/bewinxed/llm-whip/issues"
