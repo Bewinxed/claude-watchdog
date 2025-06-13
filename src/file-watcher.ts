@@ -90,7 +90,7 @@ export class FileWatcher extends EventEmitter {
       p.note('Will only alert on NEW patterns', '📸 Baseline Mode');
     } else {
       spinner.stop('No baseline found');
-      p.note(`Will alert on ALL patterns\nRun ${color.cyan('llm-whip audit')} first to create baseline`, '📸 No Baseline');
+      p.note('Will alert on ALL patterns', '📸 No Baseline');
     }
     
     p.outro(color.dim('Watching for changes... Press Ctrl+C to stop'));

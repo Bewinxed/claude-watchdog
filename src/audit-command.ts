@@ -88,42 +88,18 @@ export class AuditCommand {
     if (!configPath) return defaultConfig;
 
     try {
-      if (configPath.endsWith('.ts') || configPath.endsWith('.js')) {
-        const fullPath = join(process.cwd(), configPath);
-        
-        if (configPath.endsWith('.ts')) {
-          // For TypeScript files, transpile to JavaScript in memory
-          const { readFile } = require('fs/promises');
-          const { transformSync } = await import('esbuild');
-          
-          const tsContent = await readFile(fullPath, 'utf-8');
-          const jsContent = transformSync(tsContent, {
-            loader: 'ts',
-            format: 'esm',
-            target: 'node16'
-          }).code;
-          
-          // Create a temporary JS file path and evaluate
-          const tempPath = fullPath.replace('.ts', '.temp.js');
-          const { writeFile, unlink } = require('fs/promises');
-          await writeFile(tempPath, jsContent);
-          
-          try {
-            const configModule = await import(tempPath);
-            const customConfig = configModule.config || configModule.default;
-            await unlink(tempPath); // Clean up temp file
-            return { ...defaultConfig, ...customConfig };
-          } catch (err) {
-            await unlink(tempPath).catch(() => {}); // Clean up on error
-            throw err;
-          }
-        } else {
-          const configModule = await import(fullPath);
-          const customConfig = configModule.config || configModule.default;
-          return { ...defaultConfig, ...customConfig };
-        }
+      const fullPath = join(process.cwd(), configPath);
+      
+      if (configPath.endsWith('.json')) {
+        const content = await readFile(fullPath, 'utf-8');
+        const customConfig = JSON.parse(content);
+        return { ...defaultConfig, ...customConfig };
+      } else if (configPath.endsWith('.js')) {
+        const configModule = await import(fullPath);
+        const customConfig = configModule.config || configModule.default;
+        return { ...defaultConfig, ...customConfig };
       } else {
-        console.error('Config file must be a TypeScript (.ts) or JavaScript (.js) file');
+        console.warn(`⚠️  Unsupported config file type: ${configPath}. Please use JSON (.json) or JavaScript (.js) files.`);
         return defaultConfig;
       }
     } catch (error) {
