@@ -29,6 +29,22 @@ LLM Whip detects common shortcuts and anti-patterns in code:
 -   **Baseline Tracking**: Alert only on new patterns
 -   **Configurable Patterns**: Define custom detection rules
 
+## Quick Start
+
+```bash
+# Install
+npm install -g llm-whip
+
+# Monitor current directory with alerts
+llm-whip
+
+# Monitor with keyboard interrupts + sound
+llm-whip --interrupt --sound
+
+# Audit existing code
+llm-whip audit ./src
+```
+
 ## Installation
 
 ```bash
@@ -49,7 +65,7 @@ llm-whip
 # Monitor specific directories
 llm-whip ./src ./lib
 
-# Monitor with keyboard interrupts (sends text to active window)
+# Monitor with keyboard interrupts (sends ESC + text + Enter to active window)
 llm-whip ./src --interrupt
 
 # Monitor with sound alerts
@@ -78,10 +94,14 @@ llm-whip audit
 | `--config=<path>`   | Custom configuration file                                |
 | `--format=<type>`   | Audit output format (table/json/csv)                     |
 | `--grep=<patterns>` | Filter files by content patterns                         |
-| `--interrupt`       | Enable keyboard interrupts (sends text to active window) |
+| `--interrupt`       | Enable keyboard interrupts (sends ESC + text + Enter to active window) |
 | `--sound`           | Enable sound alerts                                       |
 
 ## Configuration
+
+LLM Whip supports both TypeScript (`.ts`) and JSON (`.json`) configuration files.
+
+### TypeScript Configuration
 
 Create `llm-whip.config.ts`:
 
@@ -96,7 +116,7 @@ export const config: Config = {
 			severity: 'high',
 			reactions: ['sound', 'alert', 'interrupt'],
 			message: 'TODO comment detected',
-			messageText:
+			interruptMessage:
 				'TODO comments should be completed before submitting code. Please implement the actual functionality instead of leaving placeholder comments.',
 		},
 		{
@@ -104,18 +124,49 @@ export const config: Config = {
 			pattern: 'The important thing is',
 			severity: 'medium',
 			reactions: ['alert'],
-			messageText:
+			interruptMessage:
 				"Detected 'The important thing is...' - this often indicates avoiding detailed implementation. Please provide specific, actionable details.",
 		},
 	],
 	reactions: {
 		sound: { command: 'afplay /System/Library/Sounds/Glass.aiff' },
-		interrupt: { delay: 500 },
+		interrupt: {
+			delay: 500,
+			sequence: ['\\u001b', '{message}', '\\n'], // ESC + message + Enter
+		},
 		alert: { format: 'color' },
 	},
 	debounce: 2000,
 	fileTracking: true,
 };
+```
+
+### JSON Configuration
+
+Create `llm-whip.config.json`:
+
+```json
+{
+  "$schema": "https://raw.githubusercontent.com/bewinxed/llm-whip/main/schema.json",
+  "patterns": [
+    {
+      "name": "todo",
+      "pattern": "TODO",
+      "severity": "high",
+      "reactions": ["sound", "alert", "interrupt"],
+      "message": "TODO comment detected",
+      "interruptMessage": "TODO comments should be completed before submitting code."
+    }
+  ],
+  "reactions": {
+    "sound": true,
+    "alert": { "format": "color" },
+    "interrupt": {
+      "delay": 500,
+      "sequence": ["\\u001b", "{message}", "\\n"]
+    }
+  }
+}
 ```
 
 ## Default Patterns
@@ -155,21 +206,24 @@ llm-whip ./src --interrupt
 
 When a pattern is detected, LLM Whip will:
 
-1. Type a warning message to the active window
-2. Press Enter to send the message
-3. The message includes:
+1. Press ESC to clear any current input
+2. Type a warning message to the active window
+3. Press Enter to send the message
+4. The message includes:
     - Pattern type and custom message
     - File path and line number
     - Timestamp
 
-Each pattern can have a custom `messageText` that gets sent:
+**Note:** The `--interrupt` flag will automatically add keyboard interrupts to all patterns, even if they don't have "interrupt" in their reactions array in the config file.
+
+Each pattern can have a custom `interruptMessage` that gets sent:
 
 ```typescript
 {
   name: "todo",
   pattern: "TODO",
   reactions: ["interrupt"],
-  messageText: "TODO comments should be completed before submitting code. Please implement the actual functionality instead of leaving placeholder comments."
+  interruptMessage: "TODO comments should be completed before submitting code. Please implement the actual functionality instead of leaving placeholder comments."
 }
 ```
 
